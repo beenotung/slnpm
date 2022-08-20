@@ -47,13 +47,16 @@ type Context = {
   packages: Map<string, Set<string>>
 }
 
-function getContextPackageVersions(context: Context, packageName: string) {
-  let versions = context.packages.get(packageName)
+function getContextPackageVersions(
+  packages: Context['packages'],
+  packageName: string,
+) {
+  let versions = packages.get(packageName)
   if (versions) {
     return versions
   }
   versions = new Set()
-  context.packages.set(packageName, versions)
+  packages.set(packageName, versions)
   return versions
 }
 
@@ -76,7 +79,7 @@ function installPackage(
       return
     }
     version = resolvedVersion
-    let versions = getContextPackageVersions(context, packageName)
+    let versions = getContextPackageVersions(context.packages, packageName)
     versions.add(version)
     let versionInfo = info['versions'][version]
     if (!versionInfo) {
@@ -271,7 +274,7 @@ function populateContext(context: Context) {
                   // skip invalid dir name
                   return
               }
-              let versions = getContextPackageVersions(context, packageName)
+              let versions = getContextPackageVersions(packageMap, packageName)
               versions.add(version)
             })
         }),
