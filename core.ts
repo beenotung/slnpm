@@ -78,9 +78,6 @@ function installPackage(
     version = resolvedVersion
     let versions = getContextPackageVersions(context, packageName)
     versions.add(version)
-    if (version.includes('*')) {
-      throw new Error('semver range is not supported')
-    }
     let versionInfo = info['versions'][version]
     if (!versionInfo) {
       throw new Error('version not found: ' + version)
