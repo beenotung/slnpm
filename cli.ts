@@ -34,7 +34,24 @@ for (let i = 2; i < process.argv.length; i++) {
 
 function printHelp() {
   let { name, version } = require('./package.json')
-  console.log(`${name} v${version}`)
+  console.log(
+    `
+${name} v${version}
+
+options:
+  --prod
+    only install packages in dependencies of package.json
+
+  --dev
+    install packages in both dependencies and devDependencies of package.json
+
+  --store-dir <path-to-cache-store>
+    customize location of cache store, default to ~/.snpm-store
+
+  --help
+    show ${name} version and help message
+`.trim(),
+  )
 }
 
 let start = Date.now()
