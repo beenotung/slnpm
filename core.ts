@@ -25,7 +25,7 @@ type Dependencies = {
   [name: string]: string
 }
 
-type PackageJson = {
+type PackageJSON = {
   dependencies: Dependencies
   devDependencies: Dependencies
 }
@@ -259,7 +259,6 @@ function downloadPackage(
   let packageDir = path.join(context.storeDir, dirName)
   let mkdirP = fs.mkdir(packageDir, { recursive: true })
   let resP = fetch(url)
-  let packageJsonFile = path.join(packageDir, 'package.json')
   return Promise.all([resP, mkdirP])
     .then(([res]) => {
       return new Promise((resolve, reject) => {
@@ -277,30 +276,34 @@ function downloadPackage(
           .on('end', resolve)
       })
     })
-    .then(() => fs.readFile(packageJsonFile))
-    .then(buffer => {
-      let json = JSON.parse(buffer.toString()) as PackageJson
+    .then(() => installPackageDir(context, packageDir))
+}
 
-      let ps: Promise<unknown>[] = []
+function installPackageDir(context: any, packageDir: string) {
+  let packageJSONFile = path.join(packageDir, 'package.json')
+  return fs.readFile(packageJSONFile).then(buffer => {
+    let json = JSON.parse(buffer.toString()) as PackageJSON
 
-      let { dependencies, devDependencies } = json
+    let ps: Promise<unknown>[] = []
 
-      if (devDependencies && context.dev && context.hotPackages.size == 1) {
-        for (let name in devDependencies) {
-          let version = devDependencies[name]
-          ps.push(installPackage(context, packageDir, name, version))
-        }
+    let { dependencies, devDependencies } = json
+
+    if (devDependencies && context.dev && context.hotPackages.size == 0) {
+      for (let name in devDependencies) {
+        let version = devDependencies[name]
+        ps.push(installPackage(context, packageDir, name, version))
       }
+    }
 
-      if (dependencies) {
-        for (let name in dependencies) {
-          let version = dependencies[name]
-          ps.push(installPackage(context, packageDir, name, version))
-        }
+    if (dependencies) {
+      for (let name in dependencies) {
+        let version = dependencies[name]
+        ps.push(installPackage(context, packageDir, name, version))
       }
+    }
 
-      return Promise.all(ps)
-    })
+    return Promise.all(ps)
+  })
 }
 
 function populateContext(context: Context) {
@@ -352,6 +355,22 @@ function scanStorePackage(
     )
     versions.add(version)
   })
+}
+
+export function installFromPackageJSON(options: {
+  cwd: string
+  dev: boolean
+  storeDir: string
+}) {
+  let context: Context = {
+    storeDir: options.storeDir,
+    dev: options.dev,
+    onDiskPackages: new Map(),
+    hotPackages: new Set(),
+  }
+  return populateContext(context).then(() =>
+    installPackageDir(context, options.cwd),
+  )
 }
 
 function test() {
