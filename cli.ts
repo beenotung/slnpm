@@ -38,7 +38,10 @@ function printHelp() {
     `
 ${name} v${version}
 
-options:
+Usage: ${name} [options]
+
+Available options:
+
   --prod
     only install packages in dependencies of package.json
 
