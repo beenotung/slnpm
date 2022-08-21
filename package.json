@@ -2,7 +2,22 @@
   "name": "snpm",
   "version": "1.0.0",
   "description": "An alternative package installer using symbolic link.",
-  "keywords": [],
+  "keywords": [
+    "dependency manager",
+    "install",
+    "installer",
+    "symbolic",
+    "link",
+    "fast",
+    "efficient",
+    "package.json",
+    "packages",
+    "dependencies",
+    "symlinks",
+    "modules",
+    "npm",
+    "package manager"
+  ],
   "author": "Beeno Tung <aabbcc1241@yahoo.com.hk> (https://beeno-tung.surge.sh)",
   "license": "BSD-2-Clause",
   "repository": {
