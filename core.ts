@@ -132,6 +132,12 @@ function linkPackage(
 ) {
   let src = path.join(context.storeDir, `${packageName}@${version}`)
   let dest = path.join(nodeModulesDir, packageName)
+  if (packageName.includes('/')) {
+    let parentDir = path.dirname(dest)
+    return fs
+      .mkdir(parentDir, { recursive: true })
+      .then(() => fs.symlink(src, dest))
+  }
   return fs.symlink(src, dest)
 }
 
