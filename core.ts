@@ -62,32 +62,67 @@ function getContextPackageVersions(
 
 function installPackage(
   context: Context,
+  packageDir: string,
   packageName: string,
-  version = 'latest',
+  versionRange: string,
+) {
+  let nodeModulesDir = path.join(packageDir, 'node_modules')
+  return fs
+    .mkdir(nodeModulesDir, { recursive: true })
+    .then(() =>
+      installPackageToNodeModule(
+        context,
+        nodeModulesDir,
+        packageName,
+        versionRange,
+      ),
+    )
+}
+
+function installPackageToNodeModule(
+  context: Context,
+  nodeModulesDir: string,
+  packageName: string,
+  versionRange: string,
 ) {
   return getPackageInfo(packageName).then(info => {
-    version = info['dist-tags'][version] || version
-    console.debug('[get package]', packageName, version)
-    let resolvedVersion = resolvePackageVersionRange(
+    if (!info['dist-tags']) {
+      console.error('missing dist-tags field in package info:', info)
+    }
+    versionRange = info['dist-tags'][versionRange] || versionRange
+    console.debug('[get package]', packageName, versionRange)
+    let { exactVersion, skip } = resolvePackageVersionRange(
       context,
       info,
       packageName,
-      version,
+      versionRange,
     )
-    if (resolvedVersion === 'skip') {
-      console.debug('[skip package]', packageName, version)
-      return
+    if (skip) {
+      console.debug('[skip package]', packageName, versionRange)
+      return linkPackage(context, nodeModulesDir, packageName, exactVersion)
     }
-    version = resolvedVersion
     let versions = getContextPackageVersions(context.packages, packageName)
-    versions.add(version)
-    let versionInfo = info['versions'][version]
+    versions.add(exactVersion)
+    let versionInfo = info['versions'][exactVersion]
     if (!versionInfo) {
-      throw new Error('version not found: ' + version)
+      throw new Error('version not found: ' + exactVersion)
     }
     let url = versionInfo.dist.tarball
-    return downloadPackage(context, packageName, version, url)
+    return downloadPackage(context, packageName, exactVersion, url).then(() =>
+      linkPackage(context, nodeModulesDir, packageName, exactVersion),
+    )
   })
+}
+
+function linkPackage(
+  context: Context,
+  nodeModulesDir: string,
+  packageName: string,
+  version: string,
+) {
+  let src = path.join(context.storeDir, `${packageName}@${version}`)
+  let dest = path.join(nodeModulesDir, packageName)
+  return fs.symlink(src, dest)
 }
 
 let isExactVersion = parseInt
@@ -98,16 +133,16 @@ let majorVersionRegex = /\^(.*?\.)/
 let minorVersionRegex = /\~(.*?\.)/
 let wildCastVersionRegex = /(.*?)\*/
 
-function getVersionFilter(version: string): VersionFilter {
-  if (version === '*') {
+function getVersionFilter(versionRange: string): VersionFilter {
+  if (versionRange === '*') {
     return () => true
   }
-  if (isExactVersion(version)) {
-    return v => v == version
+  if (isExactVersion(versionRange)) {
+    return v => v == versionRange
   }
-  switch (version[0]) {
+  switch (versionRange[0]) {
     case '^': {
-      let match = version.match(majorVersionRegex)
+      let match = versionRange.match(majorVersionRegex)
       if (!match) {
         throw new Error('failed to parse major version prefix')
       }
@@ -115,7 +150,7 @@ function getVersionFilter(version: string): VersionFilter {
       return v => v.startsWith(prefix)
     }
     case '~': {
-      let match = version.match(minorVersionRegex)
+      let match = versionRange.match(minorVersionRegex)
       if (!match) {
         throw new Error('failed to parse minor version prefix')
       }
@@ -123,7 +158,7 @@ function getVersionFilter(version: string): VersionFilter {
       return v => v.startsWith(prefix)
     }
     default: {
-      let match = version.match(wildCastVersionRegex)
+      let match = versionRange.match(wildCastVersionRegex)
       if (!match) {
         throw new Error('failed to parse wild-cast version prefix')
       }
@@ -137,9 +172,9 @@ function resolvePackageVersionRange(
   context: Context,
   info: PackageInfo,
   packageName: string,
-  version: string,
-): string {
-  let versionFilter = getVersionFilter(version)
+  versionRange: string,
+): { exactVersion: string; skip: boolean } {
+  let versionFilter = getVersionFilter(versionRange)
 
   let existingVersions = context.packages.get(packageName)
   if (existingVersions) {
@@ -147,7 +182,7 @@ function resolvePackageVersionRange(
       Array.from(existingVersions).filter(versionFilter),
     )
     if (matchedVersion) {
-      return 'skip'
+      return { exactVersion: matchedVersion, skip: true }
     }
   }
 
@@ -155,10 +190,10 @@ function resolvePackageVersionRange(
     Object.keys(info.versions).filter(versionFilter),
   )
   if (matchedVersion) {
-    return matchedVersion
+    return { exactVersion: matchedVersion, skip: false }
   }
 
-  throw new Error('version not matched: ' + version)
+  throw new Error('version not matched: ' + versionRange)
 }
 
 type Semver = (string | number)[]
@@ -226,7 +261,7 @@ function downloadPackage(
       if (dependencies) {
         for (let name in dependencies) {
           let version = dependencies[name]
-          ps.push(installPackage(context, name, version))
+          ps.push(installPackage(context, packageDir, name, version))
         }
       }
 
@@ -234,7 +269,7 @@ function downloadPackage(
       if (dependencies && context.dev) {
         for (let name in dependencies) {
           let version = dependencies[name]
-          ps.push(installPackage(context, name, version))
+          ps.push(installPackage(context, packageDir, name, version))
         }
       }
 
@@ -243,6 +278,7 @@ function downloadPackage(
 }
 
 function populateContext(context: Context) {
+  context.storeDir = path.resolve(context.storeDir)
   return fs
     .mkdir(context.storeDir, { recursive: true })
     .then(() => fs.readdir(context.storeDir))
@@ -288,9 +324,11 @@ function test() {
     dev: false,
     packages: new Map(),
   }
+  let packageDir = 'examples'
   let packageName = 'tar'
+  let versionRange = 'latest'
   populateContext(context)
-    .then(() => installPackage(context, packageName))
+    .then(() => installPackage(context, packageDir, packageName, versionRange))
     .then(() => console.log('done'))
     .catch(err => console.error(err))
 }
