@@ -425,20 +425,3 @@ export function installFromPackageJSON(options: {
     installPackageDir(context, options.cwd),
   )
 }
-
-function test() {
-  let context: Context = {
-    storeDir: 'snpm-store',
-    dev: true,
-    onDiskPackages: new Map(),
-    hotPackages: new Set(),
-  }
-  let packageDir = 'examples'
-  let packageName = '@stencil/core'
-  let versionRange = 'latest'
-  populateContext(context)
-    .then(() => installPackage(context, packageDir, packageName, versionRange))
-    .then(() => console.log('done'))
-    .catch(err => console.error(err))
-}
-// test()
