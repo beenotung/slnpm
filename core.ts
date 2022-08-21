@@ -172,9 +172,14 @@ export function getVersionFilter(versionRange: string): VersionFilter {
       return v => v.startsWith(prefix)
     }
     default: {
-      let match = versionRange.match(wildCastVersionRegex)
+      let parts = versionRange.split('.')
+      // handle implicit wild-cast range, e.g. convert "2" to "2.*"
+      let versionPattern = parts.length < 3 ? versionRange + '.*' : versionRange
+      let match = versionPattern.match(wildCastVersionRegex)
       if (!match) {
-        throw new Error('failed to parse wild-cast version prefix')
+        throw new Error(
+          'failed to parse wild-cast version prefix: ' + versionRange,
+        )
       }
       let prefix = match[1]
       return v => v.startsWith(prefix)
