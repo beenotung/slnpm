@@ -44,11 +44,13 @@ type Context = {
   storeDir: string
   dev: boolean
   // package name -> versions
-  packages: Map<string, Set<string>>
+  onDiskPackages: Map<string, Set<string>>
+  // packageName@versionRange
+  hotPackages: Set<string>
 }
 
 function getContextPackageVersions(
-  packages: Context['packages'],
+  packages: Context['onDiskPackages'],
   packageName: string,
 ) {
   let versions = packages.get(packageName)
@@ -85,12 +87,17 @@ function installPackageToNodeModule(
   packageName: string,
   versionRange: string,
 ) {
+  let key = `${packageName}@${versionRange}`
+  if (context.hotPackages.has(key)) {
+    return
+  }
+  context.hotPackages.add(key)
+  console.debug('[load package]', packageName, versionRange)
   return getPackageInfo(packageName).then(info => {
     if (!info['dist-tags']) {
       console.error('missing dist-tags field in package info:', info)
     }
     versionRange = info['dist-tags'][versionRange] || versionRange
-    console.debug('[get package]', packageName, versionRange)
     let { exactVersion, skip } = resolvePackageVersionRange(
       context,
       info,
@@ -101,11 +108,14 @@ function installPackageToNodeModule(
       console.debug('[skip package]', packageName, versionRange)
       return linkPackage(context, nodeModulesDir, packageName, exactVersion)
     }
-    let versions = getContextPackageVersions(context.packages, packageName)
+    let versions = getContextPackageVersions(
+      context.onDiskPackages,
+      packageName,
+    )
     versions.add(exactVersion)
     let versionInfo = info['versions'][exactVersion]
     if (!versionInfo) {
-      throw new Error('version not found: ' + exactVersion)
+      throw new Error(`version not found: ${packageName}@${exactVersion}`)
     }
     let url = versionInfo.dist.tarball
     return downloadPackage(context, packageName, exactVersion, url).then(() =>
@@ -125,19 +135,17 @@ function linkPackage(
   return fs.symlink(src, dest)
 }
 
-let isExactVersion = parseInt
-
 type VersionFilter = (version: string) => boolean
 
 let majorVersionRegex = /\^(.*?\.)/
-let minorVersionRegex = /\~(.*?\.)/
+let minorVersionRegex = /\~(.*?\..*?\.)/
 let wildCastVersionRegex = /(.*?)\*/
 
-function getVersionFilter(versionRange: string): VersionFilter {
+export function getVersionFilter(versionRange: string): VersionFilter {
   if (versionRange === '*') {
     return () => true
   }
-  if (isExactVersion(versionRange)) {
+  if (isSemverVersion(versionRange)) {
     return v => v == versionRange
   }
   switch (versionRange[0]) {
@@ -176,7 +184,7 @@ function resolvePackageVersionRange(
 ): { exactVersion: string; skip: boolean } {
   let versionFilter = getVersionFilter(versionRange)
 
-  let existingVersions = context.packages.get(packageName)
+  let existingVersions = context.onDiskPackages.get(packageName)
   if (existingVersions) {
     let matchedVersion = findLatestVersion(
       Array.from(existingVersions).filter(versionFilter),
@@ -217,10 +225,22 @@ function compareSemver(aVersion: Semver, bVersion: Semver) {
 }
 
 function findLatestVersion(versions: Array<string>) {
+  let semverVersions = versions.filter(isSemverVersion)
+  if (semverVersions.length > 1) {
+    versions = semverVersions
+  }
   let version = versions.map(parseExactSemver).sort(compareSemver)[0]
   if (version) {
     return version.join('.')
   }
+}
+
+function isSemverVersion(version: string) {
+  let parts = version.split('.')
+  if (parts.length !== 3) {
+    return false
+  }
+  return parts.every(part => String(+part) == part)
 }
 
 function downloadPackage(
@@ -254,19 +274,19 @@ function downloadPackage(
     .then(() => fs.readFile(packageJsonFile))
     .then(buffer => {
       let json = JSON.parse(buffer.toString()) as PackageJson
-      let dependencies = json.dependencies
 
       let ps: Promise<unknown>[] = []
 
-      if (dependencies) {
-        for (let name in dependencies) {
-          let version = dependencies[name]
+      let { dependencies, devDependencies } = json
+
+      if (devDependencies && context.dev && context.hotPackages.size == 1) {
+        for (let name in devDependencies) {
+          let version = devDependencies[name]
           ps.push(installPackage(context, packageDir, name, version))
         }
       }
 
-      dependencies = json.devDependencies
-      if (dependencies && context.dev) {
+      if (dependencies) {
         for (let name in dependencies) {
           let version = dependencies[name]
           ps.push(installPackage(context, packageDir, name, version))
@@ -282,54 +302,65 @@ function populateContext(context: Context) {
   return fs
     .mkdir(context.storeDir, { recursive: true })
     .then(() => fs.readdir(context.storeDir))
-    .then(packages => {
-      let packageMap = context.packages
+    .then(dirnames => {
       return Promise.all(
-        packages.map(dirname => {
-          return fs
-            .readdir(path.join(context.storeDir, dirname))
-            .then(packageFiles => {
-              if (packageFiles.length === 0) {
-                return
-              }
-              let parts = dirname.split('@')
-              let packageName: string
-              let version: string
-              switch (parts.length) {
-                case 2:
-                  // unscoped package
-                  packageName = parts[0]
-                  version = parts[1]
-                  break
-                case 3:
-                  // org-scoped package
-                  packageName = parts[0] + '@' + parts[1]
-                  version = parts[2]
-                  break
-                default:
-                  // skip invalid dir name
-                  return
-              }
-              let versions = getContextPackageVersions(packageMap, packageName)
-              versions.add(version)
-            })
-        }),
+        dirnames.map(dirname => scanStoreDir(context, dirname)),
       )
     })
+}
+
+function scanStoreDir(context: Context, dirname: string) {
+  let dir = path.join(context.storeDir, dirname)
+  if (dirname[0] !== '@') {
+    // unscoped package
+    let [packageName, version] = dirname.split('@')
+    return scanStorePackage(context, dir, packageName, version)
+  }
+  // org-scoped package
+  let org = dirname
+  return fs.readdir(dir).then(dirnames =>
+    Promise.all(
+      dirnames.map(dirname => {
+        let [packageName, version] = dirname.split('@')
+        packageName = `${org}/${packageName}`
+        let packageDir = path.join(dir, dirname)
+        return scanStorePackage(context, packageDir, packageName, version)
+      }),
+    ),
+  )
+}
+
+function scanStorePackage(
+  context: Context,
+  dir: string,
+  packageName: string,
+  version: string,
+) {
+  return fs.readdir(dir).then(packageFiles => {
+    if (packageFiles.length === 0) {
+      return
+    }
+    let versions = getContextPackageVersions(
+      context.onDiskPackages,
+      packageName,
+    )
+    versions.add(version)
+  })
 }
 
 function test() {
   let context: Context = {
     storeDir: 'snpm-store',
-    dev: false,
-    packages: new Map(),
+    dev: true,
+    onDiskPackages: new Map(),
+    hotPackages: new Set(),
   }
   let packageDir = 'examples'
-  let packageName = 'tar'
+  let packageName = '@stencil/core'
   let versionRange = 'latest'
   populateContext(context)
     .then(() => installPackage(context, packageDir, packageName, versionRange))
     .then(() => console.log('done'))
     .catch(err => console.error(err))
 }
-test()
+// test()
