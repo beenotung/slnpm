@@ -48,6 +48,7 @@ type Context = {
   onDiskPackages: Map<string, Set<string>>
   // packageName@versionRange -> exactVersion
   hotPackages: Map<string, Promise<string>>
+  entryPackageDir: string
 }
 
 function getContextPackageVersions(
@@ -272,7 +273,11 @@ function installPackageDir(context: any, packageDir: string) {
 
       let { dependencies, devDependencies } = json
 
-      if (devDependencies && context.dev && context.hotPackages.size == 0) {
+      if (
+        devDependencies &&
+        context.dev &&
+        packageDir == context.entryPackageDir
+      ) {
         for (let name in devDependencies) {
           let version = devDependencies[name]
           ps.push(installPackage(context, packageDir, name, version))
@@ -351,6 +356,7 @@ export function installFromPackageJSON(options: {
     dev: options.dev,
     onDiskPackages: new Map(),
     hotPackages: new Map(),
+    entryPackageDir: options.cwd,
   }
   return populateContext(context).then(() =>
     installPackageDir(context, options.cwd),
