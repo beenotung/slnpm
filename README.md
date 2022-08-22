@@ -25,6 +25,7 @@ However, this package setup symbolic link (softlink) of each package's directory
   - [x] read package list from package.json
   - [ ] add new packages to package.json
   - [ ] support local packages with `link:` and `file:` prefix
+  - [ ] support node_modules/.bin cli
 - [ ] remove packages
   - [ ] remove extra packages not specified in package.json
   - [ ] remove from specified packages from package.json
