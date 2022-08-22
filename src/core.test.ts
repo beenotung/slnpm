@@ -34,4 +34,9 @@ describe('getVersionFilter', () => {
     expect(filter('7.20.9')).to.be.true
     expect(filter('8.0.0')).to.be.false
   })
+  it('should parse version range',()=>{
+    let filter = getVersionFilter('>=3.0.0 <4.0.0')
+    expect(filter('3.2.7')).to.be.true
+    expect(filter('4.0.0')).to.be.false
+  })
 })
