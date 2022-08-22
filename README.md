@@ -2,6 +2,8 @@
 
 A simple and fast package installer using symbolic link.
 
+[![npm Package Version](https://img.shields.io/npm/v/slnpm)](https://www.npmjs.com/package/slnpm)
+
 The design is heavily inspired by pnpm, which downloads and caches each npm package, then setup hardlink of each file to the project's node_modules.
 However, this package setup symbolic link (softlink) of each package's directory.
 
