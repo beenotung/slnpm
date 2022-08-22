@@ -13,9 +13,7 @@ export class Store {
   private hotPackages = new Map<string, string | Promise<string>>()
   // packageName -> Info
   private packageInfoCache = new Map<string, Promise<PackageInfo>>()
-  constructor(options: {
-    storeDir: string
-  }) {
+  constructor(options: { storeDir: string }) {
     this.storeDir = options.storeDir
   }
   public init() {
@@ -108,9 +106,27 @@ export class Store {
     versionRange: string,
   ) {
     let exactVersion = this.getPackageVersion(packageName, versionRange)
+    if (typeof exactVersion === 'string') {
+      return this.linkPackage(nodeModulesDir, packageName, exactVersion)
+    }
+    return exactVersion.then(exactVersion =>
+      this.linkPackage(nodeModulesDir, packageName, exactVersion),
+    )
+  }
+  private linkPackage(
+    nodeModulesDir: string,
+    packageName: string,
+    exactVersion: string,
+  ) {
     let src = path.join(this.storeDir, `${packageName}@${exactVersion}`)
     let dest = path.join(nodeModulesDir, packageName)
-    return linkPackage(packageName, src, dest)
+    if (packageName.includes('/')) {
+      let parentDir = path.dirname(dest)
+      return fs
+        .mkdir(parentDir, { recursive: true })
+        .then(() => makeSymbolicLink(src, dest))
+    }
+    return makeSymbolicLink(src, dest)
   }
   private getPackageVersion(packageName: string, versionRange: string) {
     let key = `${packageName}@${versionRange}`
@@ -136,7 +152,7 @@ export class Store {
       if (info['dist-tags']) {
         versionRange = info['dist-tags'][versionRange] || versionRange
       }
-      let exactVersion = findLatestMatch(
+      const exactVersion = findLatestMatch(
         versionRange,
         Object.keys(info.versions),
       )
@@ -226,16 +242,6 @@ function findLatestMatch(versionRange: string, versions: string[]) {
 
 function getJSON(res: Response) {
   return res.json()
-}
-
-function linkPackage(packageName: string, src: string, dest: string) {
-  if (packageName.includes('/')) {
-    let parentDir = path.dirname(dest)
-    return fs
-      .mkdir(parentDir, { recursive: true })
-      .then(() => makeSymbolicLink(src, dest))
-  }
-  return makeSymbolicLink(src, dest)
 }
 
 function makeSymbolicLink(src: string, dest: string) {
