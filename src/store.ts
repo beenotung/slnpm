@@ -101,7 +101,7 @@ export class Store {
       .then(buffer => JSON.parse(buffer.toString()) as PackageJSON)
       .catch(err => {
         throw new Error(
-          'Failed to read package.json: ' + file + ', error: ' + err,
+          'Failed to read package.json: ' + file + ', details: ' + err,
         )
       })
   }
