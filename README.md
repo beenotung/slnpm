@@ -1,8 +1,6 @@
-# snpm
+# slnpm
 
 A simple and fast package installer using symbolic link.
-
-(The package name to be confirmed, due to name conflict on npm registry)
 
 The design is heavily inspired by pnpm, which downloads and caches each npm package, then setup hardlink of each file to the project's node_modules.
 However, this package setup symbolic link (softlink) of each package's directory.
@@ -36,7 +34,7 @@ node_modules and lock files are deleted before the test, and all packages were a
 
 | Package Installer | Time used |
 | ----------------- | --------- |
-| **snpm**          | 81ms      |
+| **slnpm**         | 81ms      |
 | pnpm              | 1.7s      |
 | npm               | 3.4s      |
 
