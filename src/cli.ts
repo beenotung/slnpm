@@ -4,7 +4,7 @@ import { installFromPackageJSON } from './core'
 import path from 'path'
 import os from 'os'
 
-let storeDir = path.join(os.homedir(), '.snpm-store')
+let storeDir = path.join(os.homedir(), '.slnpm-store')
 let cwd = '.'
 let dev = true
 
