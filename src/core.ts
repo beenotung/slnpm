@@ -126,7 +126,9 @@ function installPackageToNodeModule(
       versions.add(exactVersion)
       let versionInfo = info['versions'][exactVersion]
       if (!versionInfo) {
-        throw new Error(`version not found: ${packageName}@${exactVersion}`)
+        throw new Error(
+          `version not found: ${packageName}@${exactVersion}, versionRange: ${versionRange}`,
+        )
       }
       let url = versionInfo.dist.tarball
       return downloadPackage(context, packageName, exactVersion, url)
@@ -197,43 +199,11 @@ function resolveRemotePackageVersionRange(
   throw new Error('version not matched: ' + versionRange)
 }
 
-type Semver = (string | number)[]
-function parseExactSemver(version: string): Semver {
-  return version.split('.').map(part => parseInt(part) || part)
-}
-
-function compareSemver(aVersion: Semver, bVersion: Semver) {
-  let n = Math.max(aVersion.length, bVersion.length)
-  for (let i = 0; i < n; i++) {
-    let a = aVersion[i]
-    let b = bVersion[i]
-    if (a < b) {
-      return 1
-    }
-    if (a > b) {
-      return -1
-    }
-  }
-  return 0
-}
-
 function findLatestVersion(versions: Array<string>) {
-  let semverVersions = versions.filter(isSemverVersion)
-  if (semverVersions.length > 1) {
-    versions = semverVersions
-  }
-  let version = versions.map(parseExactSemver).sort(compareSemver)[0]
-  if (version) {
-    return version.join('.')
-  }
-}
-
-function isSemverVersion(version: string) {
-  let parts = version.split('.')
-  if (parts.length !== 3) {
-    return false
-  }
-  return parts.every(part => String(+part) == part)
+  return versions
+    .slice()
+    .sort((a, b) => (semver.lt(a, b) ? -1 : semver.gt(a, b) ? 1 : 0))
+    .pop()
 }
 
 function downloadPackage(
