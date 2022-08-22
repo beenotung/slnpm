@@ -74,9 +74,11 @@ store
   .then(() => {
     let end = Date.now()
     let used = end - start
+    console.log()
     console.log(`Installation finished, used ${formatDuration(used)}.`)
   })
   .catch(err => {
+    console.log()
     console.error('Installation failed:', err)
     // process.exit(1)
   })

@@ -13,6 +13,9 @@ export class Store {
   private hotPackages = new Map<string, string | Promise<string>>()
   // packageName -> Info
   private packageInfoCache = new Map<string, Promise<PackageInfo>>()
+  private reuseCount = 0
+  private downloadingCount = 0
+  private downloadedCount = 0
   constructor(options: { storeDir: string }) {
     this.storeDir = options.storeDir
   }
@@ -135,18 +138,37 @@ export class Store {
   }
   private getPackageVersion(packageName: string, versionRange: string) {
     let key = `${packageName}@${versionRange}`
-    let version = this.hotPackages.get(key)
-    if (version) {
-      return version
+    let exactVersion = this.hotPackages.get(key)
+    if (exactVersion) {
+      this.reuseCount++
+      this.report()
+      return exactVersion
     }
-    version = this.matchLocalPackageVersion(packageName, versionRange)
-    if (version) {
-      this.hotPackages.set(key, version)
-      return version
+    exactVersion = this.matchLocalPackageVersion(packageName, versionRange)
+    if (exactVersion) {
+      let packageDir = path.join(
+        this.storeDir,
+        `${packageName}@${exactVersion}`,
+      )
+      let exactVersion_ = exactVersion // to narrow down the type to non-null string
+      let p = this.installPackageDependencies(packageDir).then(() => {
+        this.reuseCount++
+        this.report()
+        return exactVersion_
+      })
+      this.hotPackages.set(key, p)
+      return p
     }
-    version = this.matchRemotePackageVersion(packageName, versionRange)
-    this.hotPackages.set(key, version)
-    return version
+    this.downloadingCount++
+    this.report()
+    exactVersion = this.matchRemotePackageVersion(packageName, versionRange)
+    this.hotPackages.set(key, exactVersion)
+    exactVersion.finally(() => {
+      this.downloadingCount--
+      this.downloadedCount++
+      this.report()
+    })
+    return exactVersion
   }
   private matchLocalPackageVersion(packageName: string, versionRange: string) {
     let versions = this.onDiskPackages.get(packageName)
@@ -210,6 +232,11 @@ export class Store {
               .on('end', resolve),
           ),
       ),
+    )
+  }
+  private report() {
+    process.stdout.write(
+      `\r  [progress] downloading: ${this.downloadingCount} | downloaded: ${this.downloadedCount} | reuse: ${this.reuseCount}  `,
     )
   }
 }
