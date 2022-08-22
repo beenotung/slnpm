@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import zlib from 'zlib'
 import tar from 'tar'
+import semver from 'semver'
 
 type PackageInfo = {
   _id: string // same as name
@@ -156,52 +157,8 @@ function linkPackage(packageName: string, src: string, dest: string) {
 
 type VersionFilter = (version: string) => boolean
 
-let majorVersionRegex = /\^(\d+)/
-let minorVersionRegex = /\~(\d+\.\d+)/
-let wildCastVersionRegex = /(.*?)\*/
-
 export function getVersionFilter(versionRange: string): VersionFilter {
-  if (versionRange === '*') {
-    return () => true
-  }
-  if (isSemverVersion(versionRange)) {
-    return v => v == versionRange
-  }
-  switch (versionRange[0]) {
-    case '^': {
-      let match = versionRange.match(majorVersionRegex)
-      if (!match) {
-        throw new Error('failed to parse major version prefix')
-      }
-      let prefix = match[1] + '.'
-      return v => v.startsWith(prefix)
-    }
-    case '~': {
-      let match = versionRange.match(minorVersionRegex)
-      if (!match) {
-        throw new Error('failed to parse minor version prefix')
-      }
-      let prefix = match[1] + '.'
-      return v => v.startsWith(prefix)
-    }
-    default: {
-      let parts = versionRange.split('.')
-      // handle implicit wild-cast range, e.g. convert "2" to "2.*"
-      let versionPattern = parts.length < 3 ? versionRange + '.*' : versionRange
-      let match = versionPattern.match(wildCastVersionRegex)
-      if (!match) {
-        throw new Error(
-          'failed to parse wild-cast version prefix: ' + versionRange,
-        )
-      }
-      let prefix = match[1]
-      return v => v.startsWith(prefix)
-    }
-  }
-}
-
-function isInt(str: string): boolean {
-  return String(+str) == str
+  return version => semver.satisfies(version, versionRange)
 }
 
 type ExactVersion = string
