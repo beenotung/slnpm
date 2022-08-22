@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { installFromPackageJSON } from './core'
 import path from 'path'
 import os from 'os'
