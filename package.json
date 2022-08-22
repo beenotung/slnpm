@@ -35,7 +35,7 @@
     "example": "example"
   },
   "scripts": {
-    "test": "tsc --noEmit",
+    "test": "tsc --noEmit && ts-mocha *.test.ts",
     "clean": "rimraf *.js",
     "build": "npm run clean && tsc -p ."
   },
