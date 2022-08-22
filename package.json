@@ -32,7 +32,7 @@
     "slnpm": "dist/cli.js"
   },
   "scripts": {
-    "test": "tsc --noEmit && ts-mocha *.test.ts",
+    "test": "tsc --noEmit && ts-mocha src/*.test.ts",
     "build": "rimraf dist && tsc -p ."
   },
   "dependencies": {
