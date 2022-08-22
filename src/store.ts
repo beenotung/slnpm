@@ -141,9 +141,12 @@ export class Store {
     }
     version = this.matchLocalPackageVersion(packageName, versionRange)
     if (version) {
+      this.hotPackages.set(key, version)
       return version
     }
-    return this.matchRemotePackageVersion(packageName, versionRange)
+    version = this.matchRemotePackageVersion(packageName, versionRange)
+    this.hotPackages.set(key, version)
+    return version
   }
   private matchLocalPackageVersion(packageName: string, versionRange: string) {
     let versions = this.onDiskPackages.get(packageName)
