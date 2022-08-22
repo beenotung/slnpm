@@ -1,11 +1,11 @@
 # snpm
 
-An alternative package installer using symbolic link.
+A simple and fast package installer using symbolic link.
 
 (The package name to be confirmed, due to name conflict on npm registry)
 
 The design is heavily inspired by pnpm, which downloads and caches each npm package, then setup hardlink of each file to the project's node_modules.
-However, this package setup symbolic link of each package's directory.
+However, this package setup symbolic link (softlink) of each package's directory.
 
 ## Feature
 
@@ -15,9 +15,9 @@ However, this package setup symbolic link of each package's directory.
 
 ## Advantages over pnpm
 
-1. setup symbolic link instead of hardlink allows the cache to be used across different file-systems / partitions
+1. This tool setup symbolic link instead of hardlink, this allows the cache to be used across different file-systems / partitions
 
-2. setup link per package instead of per file takes less time
+2. This tool setup link per package (dirctory) instead of per file, which takes less time
 
 ## Functions
 
