@@ -181,6 +181,7 @@ export class Store {
         `${packageName}@${exactVersion}`,
       )
       return this.downloadPackage(packageDir, url)
+        .then(() => this.getStorePackageVersions(packageName).add(exactVersion))
         .then(() => this.installPackageDependencies(packageDir))
         .then(() => exactVersion)
     })
