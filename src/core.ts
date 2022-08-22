@@ -251,7 +251,7 @@ function postDownloadPackage(
   ])
 }
 
-function installPackageDir(context: any, packageDir: string) {
+function installPackageDir(context: Context, packageDir: string) {
   let packageJSONFile = path.join(packageDir, 'package.json')
   return fs
     .readFile(packageJSONFile)
