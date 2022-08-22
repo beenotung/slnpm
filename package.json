@@ -33,7 +33,7 @@
   },
   "scripts": {
     "test": "tsc --noEmit && ts-mocha src/*.test.ts",
-    "build": "rimraf dist && tsc -p ."
+    "build": "rimraf dist && tsc -p . && chmod +x dist/cli.js"
   },
   "dependencies": {
     "node-fetch": "2",
