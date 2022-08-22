@@ -1,0 +1,6 @@
+.dccache
+.vscode
+*.tgz
+*.ts
+tsconfig.*
+*.test.js
