@@ -156,8 +156,8 @@ function linkPackage(packageName: string, src: string, dest: string) {
 
 type VersionFilter = (version: string) => boolean
 
-let majorVersionRegex = /\^(.*?\.)/
-let minorVersionRegex = /\~(.*?\..*?\.)/
+let majorVersionRegex = /\^(\d+)/
+let minorVersionRegex = /\~(\d+\.\d+)/
 let wildCastVersionRegex = /(.*?)\*/
 
 export function getVersionFilter(versionRange: string): VersionFilter {
@@ -173,7 +173,7 @@ export function getVersionFilter(versionRange: string): VersionFilter {
       if (!match) {
         throw new Error('failed to parse major version prefix')
       }
-      let prefix = match[1]
+      let prefix = match[1] + '.'
       return v => v.startsWith(prefix)
     }
     case '~': {
@@ -181,7 +181,7 @@ export function getVersionFilter(versionRange: string): VersionFilter {
       if (!match) {
         throw new Error('failed to parse minor version prefix')
       }
-      let prefix = match[1]
+      let prefix = match[1] + '.'
       return v => v.startsWith(prefix)
     }
     default: {
@@ -198,6 +198,10 @@ export function getVersionFilter(versionRange: string): VersionFilter {
       return v => v.startsWith(prefix)
     }
   }
+}
+
+function isInt(str: string): boolean {
+  return String(+str) == str
 }
 
 type ExactVersion = string
