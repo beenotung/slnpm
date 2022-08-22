@@ -28,7 +28,9 @@
   "bugs": {
     "url": "https://github.com/beenotung/slnpm/issues"
   },
-  "main": "index.js",
+  "bin": {
+    "slnpm": "cli.js"
+  },
   "directories": {
     "example": "example"
   },
