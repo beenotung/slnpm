@@ -151,6 +151,7 @@ export class Store {
         `${packageName}@${exactVersion}`,
       )
       let exactVersion_ = exactVersion // to narrow down the type to non-null string
+      // TODO move the dep checking on local packages to init phrase
       let p = this.installPackageDependencies(packageDir).then(() => {
         this.reuseCount++
         this.report()
