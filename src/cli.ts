@@ -2,7 +2,7 @@
 
 import path from 'path'
 import os from 'os'
-import { Store } from './store'
+import { Store } from './slnpm'
 
 let storeDir = path.join(os.homedir(), '.slnpm-store')
 let cwd = '.'
@@ -63,25 +63,23 @@ let start = Date.now()
 let store = new Store({
   storeDir,
 })
-store
-  .init()
-  .then(() =>
-    store.installFromPackageJSON({
-      dev,
-      cwd,
-    }),
-  )
-  .then(() => {
+store.installPackageDir(
+  {
+    cwd,
+    dev,
+  },
+  err => {
+    if (err) {
+      console.log()
+      console.error('Installation failed:', err)
+      process.exit(1)
+    }
     let end = Date.now()
     let used = end - start
     console.log()
     console.log(`Installation finished, used ${formatDuration(used)}.`)
-  })
-  .catch(err => {
-    console.log()
-    console.error('Installation failed:', err)
-    // process.exit(1)
-  })
+  },
+)
 
 function formatDuration(time: number): string {
   if (time < 1000) {
