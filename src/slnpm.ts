@@ -104,7 +104,7 @@ export class Store {
     cb: (err: NodeJS.ErrnoException | null) => void,
   ) {
     let dest = path.join(nodeModulesDir, packageName)
-    let src = path.join(this.storeDir, `${packageName}/${exactVersion}`)
+    let src = path.join(this.storeDir, `${packageName}@${exactVersion}`)
     if (packageName.includes('/')) {
       let parentDir = path.dirname(dest)
       fs.mkdir(
