@@ -9,8 +9,13 @@ export class Store {
   public storeDir: string
   // package name -> exact versions
   private storePackages = new Map<string, Set<string>>()
-  // TODO cache on-going downloads
+  // package name -> registry info
   private packageInfoCache = new Map<string, Promise<PackageInfo>>()
+  // package name -> version range -> exact version
+  private remotePackageCache = new Map<
+    string,
+    Map<string, string | Promise<string>>
+  >()
   constructor(options: { storeDir: string }) {
     this.storeDir = options.storeDir
     this.init()
@@ -18,39 +23,41 @@ export class Store {
 
   public installPackageDir(
     options: { cwd: string; dev: boolean },
-    cb: (err: NodeJS.ErrnoException[] | NodeJS.ErrnoException | null) => void,
+    cb: (err: NodeJS.ErrnoException[] | null) => void,
   ) {
     let packageDir = options.cwd
-    this.readPackageJSON(
-      packageDir,
-      next(cb, ({ dependencies, devDependencies }) => {
-        let waitGroup = new WaitGroup<any>()
-        let nodeModulesDir = path.join(packageDir, 'node_modules')
-        if (options.dev && devDependencies) {
-          for (let name in devDependencies) {
-            let version = devDependencies[name]
-            this.installPackage(
-              nodeModulesDir,
-              name,
-              version,
-              waitGroup.addCallback(),
-            )
-          }
+    this.readPackageJSON(packageDir, (err, json) => {
+      if (err) {
+        cb([err])
+        return
+      }
+      let { dependencies, devDependencies } = json
+      let waitGroup = new WaitGroup<any>()
+      let nodeModulesDir = path.join(packageDir, 'node_modules')
+      if (options.dev && devDependencies) {
+        for (let name in devDependencies) {
+          let version = devDependencies[name]
+          this.installPackage(
+            nodeModulesDir,
+            name,
+            version,
+            waitGroup.addCallback(),
+          )
         }
-        if (dependencies) {
-          for (let name in dependencies) {
-            let version = dependencies[name]
-            this.installPackage(
-              nodeModulesDir,
-              name,
-              version,
-              waitGroup.addCallback(),
-            )
-          }
+      }
+      if (dependencies) {
+        for (let name in dependencies) {
+          let version = dependencies[name]
+          this.installPackage(
+            nodeModulesDir,
+            name,
+            version,
+            waitGroup.addCallback(),
+          )
         }
-        waitGroup.hookCallback(cb)
-      }),
-    )
+      }
+      waitGroup.hookCallback(cb)
+    })
   }
   private readPackageJSON(
     packageDir: string,
@@ -77,12 +84,18 @@ export class Store {
 
     let exactVersion = findLatestMatch(versionRange, exactVersions)
     if (exactVersion) {
-      /* cached package */
-      this.linkPackage(nodeModulesDir, packageName, exactVersion, cb)
+      this.installStorePackage(nodeModulesDir, packageName, exactVersion, cb)
     } else {
-      /* new package */
-      this.downloadPackage(nodeModulesDir, packageName, versionRange, cb)
+      this.installRemotePackage(nodeModulesDir, packageName, versionRange, cb)
     }
+  }
+  private installStorePackage(
+    nodeModulesDir: string,
+    packageName: string,
+    exactVersion: string,
+    cb: (err: NodeJS.ErrnoException[] | NodeJS.ErrnoException | null) => void,
+  ) {
+    this.linkPackage(nodeModulesDir, packageName, exactVersion, cb)
   }
   private linkPackage(
     nodeModulesDir: string,
@@ -103,69 +116,104 @@ export class Store {
       makeSymbolicLink(src, dest, cb)
     }
   }
+  private cachedDownloadPackage(
+    packageName: string,
+    versionRange: string,
+    cb: (err: NodeJS.ErrnoException | null, exactVersion: string) => void,
+  ) {
+    let versions = this.getRemotePackageCache(packageName)
+    let exactVersion = versions.get(versionRange)
+    if (!exactVersion) {
+      exactVersion = this.downloadPackage(packageName, versionRange)
+      versions.set(versionRange, exactVersion)
+    }
+    if (typeof exactVersion === 'string') {
+      cb(null, exactVersion)
+    } else {
+      exactVersion
+        .then(exactVersion => cb(null, exactVersion))
+        .catch(err => cb(err, null as any))
+    }
+  }
   private downloadPackage(
+    packageName: string,
+    versionRange: string,
+  ): Promise<string> {
+    return this.getPackageInfo(packageName).then(info => {
+      if (info['dist-tags']) {
+        versionRange = info['dist-tags'][versionRange] || versionRange
+      }
+      const exactVersion = findLatestMatch(
+        versionRange,
+        Object.keys(info.versions),
+      )
+      if (!exactVersion) {
+        throw new Error(
+          `Failed to match package version: ${packageName}@${versionRange}`,
+        )
+      }
+      let versionInfo = info.versions[exactVersion]
+      if (!versionInfo) {
+        throw new Error(
+          `Package version not found, packageName: ${packageName}, versionRange: ${versionRange}, exactVersion: ${exactVersion}`,
+        )
+      }
+      let url = versionInfo.dist.tarball
+      let packageDir = path.join(
+        this.storeDir,
+        `${packageName}@${exactVersion}`,
+      )
+      this.getStorePackage(packageName).add(exactVersion)
+      return new Promise((resolve, reject) => {
+        fs.mkdir(packageDir, { recursive: true }, err => {
+          if (err) {
+            reject(err)
+            return
+          }
+          let cb = (err: NodeJS.ErrnoException | null, exactVersion: string) =>
+            err ? reject(err) : resolve(exactVersion)
+          fetch(url)
+            .then(res =>
+              res.body
+                .on('error', cb)
+                .pipe(zlib.createGunzip())
+                .on('error', cb)
+                .pipe(tar.extract({ strip: 1, cwd: packageDir }))
+                .on('error', cb)
+                .on('end', () => {
+                  cb(null, exactVersion)
+                }),
+            )
+            .catch(err => cb(err, null as any))
+        })
+      })
+    })
+  }
+  private installRemotePackage(
     nodeModulesDir: string,
     packageName: string,
     versionRange: string,
-    cb: (err: NodeJS.ErrnoException[] | NodeJS.ErrnoException | null) => void,
+    cb: (err: NodeJS.ErrnoException[] | null) => void,
   ) {
-    this.getPackageInfo(packageName)
-      .then(info => {
-        if (info['dist-tags']) {
-          versionRange = info['dist-tags'][versionRange] || versionRange
+    this.cachedDownloadPackage(
+      packageName,
+      versionRange,
+      (err, exactVersion) => {
+        if (err) {
+          cb([err])
+          return
         }
-        const exactVersion = findLatestMatch(
-          versionRange,
-          Object.keys(info.versions),
+        let waitGroup = new WaitGroup<NodeJS.ErrnoException>()
+        this.linkPackage(
+          nodeModulesDir,
+          packageName,
+          exactVersion,
+          waitGroup.addCallback(),
         )
-        if (!exactVersion) {
-          throw new Error(
-            `Failed to match package version: ${packageName}@${versionRange}`,
-          )
-        }
-        let versionInfo = info.versions[exactVersion]
-        if (!versionInfo) {
-          throw new Error(
-            `Package version not found, packageName: ${packageName}, versionRange: ${versionRange}, exactVersion: ${exactVersion}`,
-          )
-        }
-        let url = versionInfo.dist.tarball
-        let packageDir = path.join(
-          this.storeDir,
-          `${packageName}@${exactVersion}`,
-        )
-        fs.mkdir(
-          packageDir,
-          { recursive: true },
-          next(cb, () => {
-            fetch(url)
-              .then(res =>
-                res.body
-                  .on('error', cb)
-                  .pipe(zlib.createGunzip())
-                  .on('error', cb)
-                  .pipe(tar.extract({ strip: 1, cwd: packageDir }))
-                  .on('error', cb)
-                  .on('end', () => {
-                    this.getStorePackage(packageName).add(exactVersion)
-                    this.installPackageDir(
-                      { cwd: '', dev: false },
-                      next(cb, () =>
-                        this.linkPackage(
-                          nodeModulesDir,
-                          packageName,
-                          exactVersion,
-                          cb,
-                        ),
-                      ),
-                    )
-                  }),
-              )
-              .catch(cb)
-          }),
-        )
-      })
-      .catch(cb)
+        this.installPackageDir({ cwd: '', dev: false }, waitGroup.addCallback())
+        waitGroup.hookCallback(cb)
+      },
+    )
   }
   private getPackageInfo(packageName: string) {
     let info = this.packageInfoCache.get(packageName)
@@ -176,6 +224,15 @@ export class Store {
     info = fetch(url).then(getJSON)
     this.packageInfoCache.set(packageName, info)
     return info
+  }
+  private getRemotePackageCache(packageName: string) {
+    let cache = this.remotePackageCache.get(packageName)
+    if (cache) {
+      return cache
+    }
+    cache = new Map()
+    this.remotePackageCache.set(packageName, cache)
+    return cache
   }
 
   private init() {
@@ -215,10 +272,14 @@ class WaitGroup<E> {
 
   addCallback() {
     this.pending++
-    return (err: E | null) => {
+    return (err: E[] | E | null) => {
       this.pending--
       if (err) {
-        this.errors.push(err)
+        if (Array.isArray(err)) {
+          this.errors.push(...err)
+        } else {
+          this.errors.push(err)
+        }
       }
       if (this.pending === 0) {
         let err = this.errors.length === 0 ? null : this.errors
