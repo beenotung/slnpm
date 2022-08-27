@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { getVersionFilter } from './core'
+import { getVersionFilter } from './1-core'
 
 describe('getVersionFilter', () => {
   it('should only allow patch version update with "~" prefix', () => {
