@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+set -o pipefail
+../scripts/clear
+clear
+../scripts/install

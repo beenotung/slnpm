@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+set -o pipefail
+rm -rf node_modules
+cd ../../.slnpm-store
+rm -rf * .tmp

@@ -2,7 +2,7 @@
 
 import path from 'path'
 import os from 'os'
-import { Store } from './slnpm'
+import { installPackageDir, Store } from './cache'
 
 let storeDir = path.join(os.homedir(), '.slnpm-store')
 let cwd = '.'
@@ -63,7 +63,8 @@ let start = Date.now()
 let store = new Store({
   storeDir,
 })
-store.installPackageDir(
+installPackageDir(
+  store,
   {
     cwd,
     dev,
