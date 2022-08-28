@@ -1,4 +1,4 @@
 #!/bin/bash
 set -e
 set -o pipefail
-time npx ts-node ../../src/cli.ts
+time npx ts-node ../../src/cli.ts --verbose
