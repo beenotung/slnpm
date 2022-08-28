@@ -1,4 +1,4 @@
 #!/bin/bash
 set -e
 set -o pipefail
-node -p "require('mocha') && require('tar') && 'ok'"
+node -p "require('mocha') && require('ts-node') && 'ok'"
