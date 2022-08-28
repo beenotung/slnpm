@@ -2,5 +2,6 @@
 .vscode/
 *.tgz
 src/
+examples/
 tsconfig.*
 *.test.js
