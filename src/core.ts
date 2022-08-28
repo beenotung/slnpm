@@ -157,9 +157,7 @@ export function main(options: {
   function collectNodeModules(nodeModulesDir: string) {
     // detect cyclic dependencies
     let realNodeModulesDir = realpathSync(nodeModulesDir)
-    if (collectedNodeModules.has(realNodeModulesDir)) {
-      return
-    }
+    if (collectedNodeModules.has(realNodeModulesDir)) return
     collectedNodeModules.add(realNodeModulesDir)
     for (let dirname of readdirSync(nodeModulesDir)) {
       if (dirname[0] === '.') continue
@@ -218,7 +216,12 @@ export function main(options: {
   if (options.verbose && usedPackageVersions.size > 0) {
     console.log('linking packages:', usedPackageVersions)
   }
+  let linkedDeps = new Set<string>()
   function linkDeps(packageDir: string) {
+    // detect cyclic dependencies
+    let realPackageDir = realpathSync(packageDir)
+    if (linkedDeps.has(realPackageDir)) return
+    linkedDeps.add(realPackageDir)
     let file = join(packageDir, 'package.json')
     let { dependencies } = JSON.parse(
       readFileSync(file).toString(),
