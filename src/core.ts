@@ -16,6 +16,9 @@ export function main(options: {
   cwd: string
   dev: boolean
   verbose: boolean
+  installDeps: string[]
+  installDevDeps: string[]
+  uninstallDeps: string[]
 }) {
   let storeDir = resolve(options.storeDir)
   mkdirSync(storeDir, { recursive: true })
@@ -38,17 +41,94 @@ export function main(options: {
     }
   }
 
-  let file = join(options.cwd, 'package.json')
-  let { dependencies, devDependencies } = JSON.parse(
-    readFileSync(file).toString(),
+  let packageFile = join(options.cwd, 'package.json')
+  let packageJson = JSON.parse(
+    readFileSync(packageFile).toString(),
   ) as PackageJSON
+  let { dependencies, devDependencies } = packageJson
 
   let nodeModulesDir = join(options.cwd, 'node_modules')
   mkdirSync(nodeModulesDir, { recursive: true })
 
   let newDeps: Dependencies = {}
   let hasNewDeps = false
-  function addDep(name: string, versionRange: string) {
+  let newInstallDeps: Dependencies = {}
+  function addInstallDep(dep: string): { name: string; version: string } {
+    let { name, version } = parseDep(dep)
+    let storeVersions = getVersions(storePackageVersions, name)
+    let exactVersion = semver.maxSatisfying(
+      Array.from(storeVersions),
+      version || '*',
+    )
+    if (exactVersion) {
+      linkPackage(storeDir, nodeModulesDir, name, exactVersion)
+      return { name, version: version || `^${exactVersion}` }
+    }
+
+    let npmVersions = npmViewVersions(dep)
+    if (npmVersions.length === 0) throw new Error('No versions found: ' + dep)
+    npmVersions.reverse()
+    for (let exactVersion of npmVersions) {
+      if (storeVersions.has(exactVersion)) {
+        linkPackage(storeDir, nodeModulesDir, name, exactVersion)
+        return { name, version: version || `^${exactVersion}` }
+      }
+    }
+    exactVersion = npmVersions[0]
+    version = version || `^${exactVersion}`
+    newDeps[name] = version
+    hasNewDeps = true
+    return { name, version: version }
+  }
+  let hasUpdatedPackageJson = false
+  if (options.installDeps.length > 0) {
+    let deps = dependencies ? { ...dependencies } : {}
+    for (let dep of options.installDeps) {
+      let { name, version } = addInstallDep(dep)
+      deps[name] = version
+      newInstallDeps[name] = version
+    }
+    packageJson.dependencies = sortDeps(deps)
+    hasUpdatedPackageJson = true
+  }
+  if (options.installDevDeps.length > 0) {
+    let deps = devDependencies ? { ...devDependencies } : {}
+    for (let dep of options.installDevDeps) {
+      let { name, version } = addInstallDep(dep)
+      deps[name] = version
+      newInstallDeps[name] = version
+    }
+    packageJson.devDependencies = sortDeps(deps)
+    hasUpdatedPackageJson = true
+  }
+  if (options.uninstallDeps.length > 0) {
+    if (options.verbose) {
+      console.log('uninstalling packages:', options.uninstallDeps)
+    }
+    for (let dep of options.uninstallDeps) {
+      let { name } = parseDep(dep)
+      uninstallDep(nodeModulesDir, name)
+      if (packageJson.dependencies && name in packageJson.dependencies) {
+        delete packageJson.dependencies[name]
+        hasUpdatedPackageJson = true
+        if (dependencies) {
+          delete dependencies[name]
+        }
+      }
+      if (packageJson.devDependencies && name in packageJson.devDependencies) {
+        delete packageJson.devDependencies[name]
+        hasUpdatedPackageJson = true
+        if (devDependencies) {
+          delete devDependencies[name]
+        }
+      }
+    }
+  }
+  if (hasUpdatedPackageJson) {
+    writeFileSync(packageFile, JSON.stringify(packageJson, null, 2))
+  }
+
+  function addPackageDep(name: string, versionRange: string) {
     let versions = Array.from(getVersions(storePackageVersions, name))
     let exactVersion = findLatestMatch(versionRange, versions)
     if (exactVersion) {
@@ -61,13 +141,13 @@ export function main(options: {
   if (devDependencies && options.dev) {
     for (let name in devDependencies) {
       let version = devDependencies[name]
-      addDep(name, version)
+      addPackageDep(name, version)
     }
   }
   if (dependencies) {
     for (let name in dependencies) {
       let version = dependencies[name]
-      addDep(name, version)
+      addPackageDep(name, version)
     }
   }
 
@@ -161,6 +241,10 @@ export function main(options: {
     linkDeps(depPackageDir)
   }
 
+  for (let name in newInstallDeps) {
+    let version = newInstallDeps[name]
+    linkDep(nodeModulesDir, name, version)
+  }
   if (devDependencies && options.dev) {
     for (let name in devDependencies) {
       let version = devDependencies[name]
@@ -200,10 +284,7 @@ function findLatestMatch(versionRange: string, exactVersions: string[]) {
   if (versionRange === 'latest') {
     versionRange = '*'
   }
-  return exactVersions
-    .filter(exactVersion => semver.satisfies(exactVersion, versionRange))
-    .sort((a, b) => (semver.lt(a, b) ? -1 : semver.gt(a, b) ? 1 : 0))
-    .pop()
+  return semver.maxSatisfying(exactVersions, versionRange)
 }
 
 function makeSymbolicLink(src: string, dest: string) {
@@ -213,7 +294,6 @@ function makeSymbolicLink(src: string, dest: string) {
     if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
       return
     }
-    console.debug(err)
     throw err
   }
 }
@@ -246,4 +326,69 @@ function npmInstall(cwd: string, dependencies: Dependencies) {
 function mv(src: string, dest: string) {
   let cmd = `mv ${JSON.stringify(src)} ${JSON.stringify(dest)}`
   execSync(cmd)
+}
+
+function parseDep(dep: string): { name: string; version: string | null } {
+  if (dep.length === 0) {
+    throw new Error('Invalid dependency format (empty string)')
+  }
+  let parts = dep.split('@')
+  switch (parts.length) {
+    case 1:
+      // e.g. semver
+      return { name: parts[0], version: null }
+    case 2:
+      if (parts[0].length === 0) {
+        // e.g. @types/semver
+        return { name: '@' + parts[1], version: null }
+      }
+      // e.g. semver@^7.3.7
+      return {
+        name: parts[0],
+        version: parts[1] || null,
+      }
+    case 3:
+      if (parts[0].length > 0)
+        throw new Error('Invalid dependency format: ' + JSON.stringify(dep))
+      // e.g. @types/semver@^7.3.9
+      return {
+        name: '@' + parts[1],
+        version: parts[2] || null,
+      }
+    default:
+      throw new Error('Invalid dependency format: ' + JSON.stringify(dep))
+  }
+}
+
+function npmViewVersions(dep: string): string[] {
+  let cmd = `npm view ${JSON.stringify(dep)} version`
+  let stdout = execSync(cmd)
+  let versions: string[] = []
+  stdout
+    .toString()
+    .split('\n')
+    .forEach(line => {
+      // e.g. `semver@1.0.8 '1.0.8'`
+      let version = line.trim().split(' ').pop()
+      if (!version) return
+      versions.push(version.replace(/'/g, ''))
+    })
+  return versions
+}
+
+function uninstallDep(nodeModulesDir: string, name: string) {
+  let dir = join(nodeModulesDir, name)
+  console.debug('uninstall', { name, dir })
+  rmSync(dir, { recursive: true, force: true })
+}
+
+function sortDeps(deps: Dependencies) {
+  let newDeps: Dependencies = {}
+  Object.keys(deps)
+    .sort()
+    .forEach(name => {
+      let version = deps[name]
+      newDeps[name] = version
+    })
+  return newDeps
 }

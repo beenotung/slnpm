@@ -8,9 +8,33 @@ let storeDir = path.join(os.homedir(), '.slnpm-store')
 let cwd = '.'
 let dev = true
 let verbose = false
+let installDeps: string[] = []
+let installDevDeps: string[] = []
+let uninstallDeps: string[] = []
+
+let mode: 'install' | 'uninstall' | 'default' | null = null
+let installTarget: 'deps' | 'devDeps' = 'deps'
 
 for (let i = 2; i < process.argv.length; i++) {
   let arg = process.argv[i]
+  if (!mode) {
+    switch (arg) {
+      case 'install':
+      case 'i':
+      case 'add':
+      case 'a':
+        mode = 'install'
+        continue
+      case 'uninstall':
+      case 'u':
+      case 'remove':
+      case 'r':
+        mode = 'uninstall'
+        continue
+      default:
+        mode = 'default'
+    }
+  }
   switch (arg) {
     case '--dev':
       dev = true
@@ -32,16 +56,52 @@ for (let i = 2; i < process.argv.length; i++) {
     case '--quiet':
       verbose = false
       break
+    case '-D':
+    case '--save-dev':
+      installTarget = 'devDeps'
+      dev = true
+      break
     case '--version':
       showVersion()
       process.exit(0)
     case '--help':
       printHelp()
       process.exit(0)
-    default:
-      console.error('Error: unknown argument:', arg)
-      process.exit(1)
+    default: {
+      if (mode === 'default' || arg[0] === '-') {
+        let name = showVersion()
+        console.error('Error: unknown argument:', arg)
+        console.error(`You can run '${name} --help' to see help messages.`)
+        process.exit(1)
+      }
+      switch (mode) {
+        default:
+          console.error('Error: unknown mode:', mode)
+          process.exit(1)
+        case 'uninstall':
+          uninstallDeps.push(arg)
+          break
+        case 'install':
+          switch (installTarget) {
+            case 'deps':
+              installDeps.push(arg)
+              break
+            case 'devDeps':
+              installDevDeps.push(arg)
+              break
+            default:
+              console.error('Error: unknown install target:', mode)
+              process.exit(1)
+          }
+      }
+    }
   }
+}
+
+// fallback handle for tailing -D flag
+if (installTarget === 'devDeps' && installDevDeps.length === 0) {
+  installDevDeps = installDeps
+  installDeps = []
 }
 
 function showVersion() {
@@ -55,7 +115,15 @@ function printHelp() {
   console.log()
   console.log(
     `
+## Default Mode
+
+This mode installs existing dependencies (and devDependencies) specified in the package.json
+
 Usage: ${name} [options]
+
+Example: ${name}
+Example: ${name} --verbose
+Example: ${name} --store-dir /data/.slnpm-store --prod
 
 Available options:
 
@@ -68,7 +136,12 @@ Available options:
     (default true)
 
   --store-dir <path-to-cache-store>
-    customize location of cache store, default to ~/.snpm-store
+    customize location of cache store
+    (default to ~/.slnpm-store)
+
+  --recursive | -r
+    run installation recursively in every package found in sub-directories
+    (default false)
 
   --verbose
     print installed package name and versions
@@ -83,13 +156,52 @@ Available options:
 
   --version
     show ${name} version
+
+
+## Install Mode
+
+This mode installs specified packages and save to dependencies or devDependencies
+
+Usage: ${name} install [options] [...packages]
+
+Alias for install: add, i, a
+
+Example: ${name} install tar
+Example: ${name} i node-fetch@2 -D @types/node-fetch@2
+Example: ${name} i -D typescript @types/node ts-node
+
+Available options:
+
+  --save-dev | -D
+    install the packages as devDependencies
+
+
+## Uninstall Mode
+
+This mode uninstalls specified packages and remove from dependencies and devDependencies
+
+Usage: ${name} uninstall [...packages]
+
+Alias for uninstall: remove, u, r
+
+Example: ${name} uninstall tar
+Example: ${name} u ts-node node-fetch @types/node-fetch
+
 `.trim(),
   )
 }
 
 let start = Date.now()
 try {
-  main({ storeDir, cwd, dev, verbose })
+  main({
+    storeDir,
+    cwd,
+    dev,
+    verbose,
+    installDeps,
+    installDevDeps,
+    uninstallDeps,
+  })
   let end = Date.now()
   let used = end - start
   console.log()
