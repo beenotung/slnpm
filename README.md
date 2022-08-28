@@ -40,11 +40,14 @@ The test was conducted on laptop with zst-compressed zfs and desktop with zst-co
 
 | Package Installer | Time used |
 | ----------------- | --------- |
-| **slnpm**         | 87ms      |
-| pnpm              | 1.7s      |
-| npm               | 3.4s      |
+| **slnpm**         | 62ms      |
+| pnpm              | 1.5s      |
+| npm               | 3.1s      |
 
-Remark: `--prefer-offline` flag is used in pnpm's test
+Remark:
+
+- `--prefer-offline` flag is used in pnpm's test
+- The time used is average of 5 runs
 
 ## License
 
