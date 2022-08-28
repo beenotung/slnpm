@@ -55,6 +55,7 @@ for (let i = 2; i < process.argv.length; i++) {
       verbose = true
       break
     case '--quiet':
+    case '-q':
       verbose = false
       break
     case '-D':
@@ -148,7 +149,7 @@ Available options:
     print installed package name and versions
     (default false)
 
-  --quiet
+  --quiet | -q
     do not print install package name and versions
     (default true)
 
