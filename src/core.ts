@@ -7,6 +7,7 @@ import {
   writeFileSync,
   existsSync,
   rmSync,
+  realpathSync,
 } from 'fs'
 import { dirname, join, resolve } from 'path'
 import semver from 'semver'
@@ -152,7 +153,14 @@ export function main(options: {
   }
 
   let usedPackageVersions = new Map<string, Set<string>>()
+  let collectedNodeModules = new Set<string>()
   function collectNodeModules(nodeModulesDir: string) {
+    // detect cyclic dependencies
+    let realNodeModulesDir = realpathSync(nodeModulesDir)
+    if (collectedNodeModules.has(realNodeModulesDir)) {
+      return
+    }
+    collectedNodeModules.add(realNodeModulesDir)
     for (let dirname of readdirSync(nodeModulesDir)) {
       if (dirname[0] === '.') continue
       if (dirname[0] !== '@') {
