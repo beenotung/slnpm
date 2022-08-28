@@ -32,13 +32,15 @@ However, this package setup symbolic link (softlink) of each package's directory
 
 ## Benchmark
 
-The benchmark is done using this package as example.
+The benchmark is done using this package's dependencies as example.
 
-node_modules and lock files are deleted before the test, and all packages were already cached by the installers
+node_modules and lock files are deleted before the test, and all packages were already cached by the installers.
+
+The test was conducted on laptop with zst-compressed zfs and desktop with zst-compressed btrfs. The result is almost identical.
 
 | Package Installer | Time used |
 | ----------------- | --------- |
-| **slnpm**         | 81ms      |
+| **slnpm**         | 87ms      |
 | pnpm              | 1.7s      |
 | npm               | 3.4s      |
 
