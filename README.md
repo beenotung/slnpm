@@ -17,7 +17,7 @@ However, this package setup symbolic link (softlink) of each package's directory
 
 1. This tool setup symbolic link instead of hardlink, this allows the cache to be used across different file-systems / partitions
 
-2. This tool setup link per package (dirctory) instead of per file, which takes less time
+2. This tool setup link per package (directory) instead of per file, which takes less time
 
 ## Functions
 
