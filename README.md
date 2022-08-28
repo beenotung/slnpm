@@ -28,7 +28,7 @@ However, this package setup symbolic link (softlink) of each package's directory
   - [ ] support node_modules/.bin cli
 - [ ] remove packages
   - [x] remove extra packages not specified in package.json
-  - [ ] remove from specified packages from package.json
+  - [ ] remove specified packages from package.json
 
 ## Benchmark
 
