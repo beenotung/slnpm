@@ -40,7 +40,7 @@ The test was conducted on laptop with zst-compressed zfs and desktop with zst-co
 
 | Package Installer | Time used |
 | ----------------- | --------- |
-| **slnpm**         | 62ms      |
+| **slnpm**         | 0.1s      |
 | pnpm              | 1.5s      |
 | npm               | 3.1s      |
 
