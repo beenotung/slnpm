@@ -51,6 +51,7 @@ for (let i = 2; i < process.argv.length; i++) {
       }
       break
     case '--verbose':
+    case '-v':
       verbose = true
       break
     case '--quiet':
@@ -143,7 +144,7 @@ Available options:
     run installation recursively in every package found in sub-directories
     (default false)
 
-  --verbose
+  --verbose | -v
     print installed package name and versions
     (default false)
 
