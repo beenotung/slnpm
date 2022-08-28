@@ -11,6 +11,7 @@ let verbose = false
 let installDeps: string[] = []
 let installDevDeps: string[] = []
 let uninstallDeps: string[] = []
+let recursive = false
 
 let mode: 'install' | 'uninstall' | 'default' | null = null
 let installTarget: 'deps' | 'devDeps' = 'deps'
@@ -62,6 +63,10 @@ for (let i = 2; i < process.argv.length; i++) {
     case '--save-dev':
       installTarget = 'devDeps'
       dev = true
+      break
+    case '-r':
+    case '--recursive':
+      recursive = true
       break
     case '--version':
       showVersion()
@@ -142,7 +147,7 @@ Available options:
     (default to ~/.slnpm-store)
 
   --recursive | -r
-    run installation recursively in every package found in sub-directories
+    install in all sub-directories with a package.json file (excluding node_modules)
     (default false)
 
   --verbose | -v
@@ -203,6 +208,7 @@ try {
     installDeps,
     installDevDeps,
     uninstallDeps,
+    recursive,
   })
   let end = Date.now()
   let used = end - start

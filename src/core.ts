@@ -8,11 +8,12 @@ import {
   existsSync,
   rmSync,
   realpathSync,
+  statSync,
 } from 'fs'
 import { dirname, join, resolve } from 'path'
 import semver from 'semver'
 
-export function main(options: {
+type Options = {
   storeDir: string
   cwd: string
   dev: boolean
@@ -20,10 +21,31 @@ export function main(options: {
   installDeps: string[]
   installDevDeps: string[]
   uninstallDeps: string[]
-}) {
+  recursive: boolean
+}
+
+export function main(options: Options) {
   let storeDir = resolve(options.storeDir)
   mkdirSync(storeDir, { recursive: true })
 
+  let storePackageVersions = scanStorePackages(storeDir)
+  let collectedNodeModules = new Set<string>()
+  let context: Context = {
+    options,
+    storeDir,
+    storePackageVersions,
+    collectedNodeModules,
+  }
+
+  if (options.recursive) {
+    scanPackageRecursively(context, options.cwd, new Set())
+    return
+  }
+
+  installPackages(context, options.cwd)
+}
+
+function scanStorePackages(storeDir: string) {
   // package name -> exact versions
   let storePackageVersions = new Map<string, Set<string>>()
 
@@ -42,13 +64,27 @@ export function main(options: {
     }
   }
 
-  let packageFile = join(options.cwd, 'package.json')
+  return storePackageVersions
+}
+
+type Context = {
+  options: Options
+  storeDir: string
+  storePackageVersions: Map<string, Set<string>>
+  collectedNodeModules: Set<string>
+}
+
+function installPackages(context: Context, packageDir: string) {
+  let { storeDir, storePackageVersions, options, collectedNodeModules } =
+    context
+
+  let packageFile = join(packageDir, 'package.json')
   let packageJson = JSON.parse(
     readFileSync(packageFile).toString(),
   ) as PackageJSON
   let { dependencies, devDependencies } = packageJson
 
-  let nodeModulesDir = join(options.cwd, 'node_modules')
+  let nodeModulesDir = join(packageDir, 'node_modules')
   mkdirSync(nodeModulesDir, { recursive: true })
 
   let newDeps: Dependencies = {}
@@ -153,7 +189,6 @@ export function main(options: {
   }
 
   let usedPackageVersions = new Map<string, Set<string>>()
-  let collectedNodeModules = new Set<string>()
   function collectNodeModules(nodeModulesDir: string) {
     // detect cyclic dependencies
     let realNodeModulesDir = realpathSync(nodeModulesDir)
@@ -402,4 +437,30 @@ function sortDeps(deps: Dependencies) {
       newDeps[name] = version
     })
   return newDeps
+}
+
+function scanPackageRecursively(
+  context: Context,
+  dir: string,
+  visited: Set<string>,
+) {
+  let realDir = realpathSync(dir)
+  if (visited.has(realDir)) return
+  visited.add(realDir)
+  for (let filename of readdirSync(dir)) {
+    if (filename[0] === '.' || filename === 'node_modules') continue
+    let file = join(dir, filename)
+    let stat = statSync(file)
+    if (filename === 'package.json' && stat.isFile()) {
+      if (context.options.verbose) {
+        console.log('installing packages in:', dir)
+      }
+      installPackages(context, dir)
+      continue
+    }
+    if (stat.isDirectory()) {
+      scanPackageRecursively(context, file, visited)
+      continue
+    }
+  }
 }
