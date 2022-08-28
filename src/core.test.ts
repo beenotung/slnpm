@@ -1,7 +1,11 @@
 import { expect } from 'chai'
-import { getVersionFilter } from './1-core'
+import semver from 'semver'
 
-describe('getVersionFilter', () => {
+describe('VersionFilter', () => {
+  function getVersionFilter(versionRange: string) {
+    return (exactVersion: string) =>
+      semver.satisfies(exactVersion, versionRange)
+  }
   it('should only allow patch version update with "~" prefix', () => {
     let filter = getVersionFilter('~7.20.3')
     expect(filter('7.20.9')).to.be.true
@@ -34,7 +38,7 @@ describe('getVersionFilter', () => {
     expect(filter('7.20.9')).to.be.true
     expect(filter('8.0.0')).to.be.false
   })
-  it('should parse version range',()=>{
+  it('should parse version range', () => {
     let filter = getVersionFilter('>=3.0.0 <4.0.0')
     expect(filter('3.2.7')).to.be.true
     expect(filter('4.0.0')).to.be.false

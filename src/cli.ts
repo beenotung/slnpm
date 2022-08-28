@@ -2,7 +2,7 @@
 
 import path from 'path'
 import os from 'os'
-import { main } from './5-sync-core'
+import { main } from './core'
 
 let storeDir = path.join(os.homedir(), '.slnpm-store')
 let cwd = '.'
