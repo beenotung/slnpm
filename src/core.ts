@@ -210,10 +210,10 @@ function installPackages(context: Context, packageDir: string) {
     }
   }
   function collectPackage(packageDir: string) {
-    let file = join(packageDir, 'package.json')
-    let { name, version } = JSON.parse(
-      readFileSync(file).toString(),
-    ) as PackageJSON
+    let {
+      json: { name, version },
+      file,
+    } = getPackageJson(packageDir)
     if (!name) throw new Error(`missing package name in ${file}`)
     if (!version) throw new Error(`missing package version in ${file}`)
     getVersions(storePackageVersions, name).add(version)
@@ -259,10 +259,9 @@ function installPackages(context: Context, packageDir: string) {
     let realPackageDir = realpathSync(packageDir)
     if (linkedDeps.has(realPackageDir)) return
     linkedDeps.add(realPackageDir)
-    let file = join(packageDir, 'package.json')
-    let { dependencies, bin } = JSON.parse(
-      readFileSync(file).toString(),
-    ) as PackageJSON
+    let {
+      json: { dependencies, bin },
+    } = getPackageJson(packageDir)
     if (!dependencies) return
     let nodeModulesDir = join(packageDir, 'node_modules')
     let hasNodeModulesDir = false
@@ -338,6 +337,18 @@ type PackageBin = string | Record<string, string>
 type Dependencies = {
   // package name -> version range
   [name: string]: string
+}
+
+// packageDir -> PackageJSON
+let jsonCache = new Map<string, { json: PackageJSON; file: string }>()
+function getPackageJson(packageDir: string) {
+  let entry = jsonCache.get(packageDir)
+  if (entry) return entry
+  let file = join(packageDir, 'package.json')
+  let json = JSON.parse(readFileSync(file).toString()) as PackageJSON
+  entry = { json, file }
+  jsonCache.set(packageDir, entry)
+  return entry
 }
 
 function findLatestMatch(versionRange: string, exactVersions: string[]) {
