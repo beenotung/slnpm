@@ -251,6 +251,8 @@ function installPackages(context: Context, packageDir: string) {
   if (options.verbose && usedPackageVersions.size > 0) {
     console.log('linking packages:', usedPackageVersions)
   }
+  let hasBinDir = false
+  let binDir = join(nodeModulesDir, '.bin')
   let linkedDeps = new Set<string>()
   function linkDeps(packageDir: string) {
     // detect cyclic dependencies
@@ -258,20 +260,21 @@ function installPackages(context: Context, packageDir: string) {
     if (linkedDeps.has(realPackageDir)) return
     linkedDeps.add(realPackageDir)
     let file = join(packageDir, 'package.json')
-    let { dependencies } = JSON.parse(
+    let { dependencies, bin } = JSON.parse(
       readFileSync(file).toString(),
     ) as PackageJSON
     if (!dependencies) return
     let nodeModulesDir = join(packageDir, 'node_modules')
-    let hasDir = false
+    let hasNodeModulesDir = false
     for (let name in dependencies) {
-      if (!hasDir) {
+      if (!hasNodeModulesDir) {
         mkdirSync(nodeModulesDir, { recursive: true })
-        hasDir = true
+        hasNodeModulesDir = true
       }
       let versionRange = dependencies[name]
       linkDep(nodeModulesDir, name, versionRange)
     }
+    return bin
   }
   function linkDep(nodeModulesDir: string, name: string, versionRange: string) {
     let versions = Array.from(getVersions(storePackageVersions, name))
@@ -284,7 +287,14 @@ function installPackages(context: Context, packageDir: string) {
       name,
       exactVersion,
     )
-    linkDeps(depPackageDir)
+    let bin = linkDeps(depPackageDir)
+    if (bin) {
+      if (!hasBinDir) {
+        mkdirSync(binDir, { recursive: true })
+        hasBinDir = true
+      }
+      linkBin(binDir, depPackageDir, name, bin)
+    }
   }
 
   for (let name in newInstallDeps) {
@@ -317,9 +327,13 @@ function getVersions(map: Map<string, Set<string>>, name: string) {
 type PackageJSON = {
   name?: string
   version?: string
+  bin?: PackageBin
   dependencies?: Dependencies
   devDependencies?: Dependencies
+  peerDependencies?: Dependencies
 }
+
+type PackageBin = string | Record<string, string>
 
 type Dependencies = {
   // package name -> version range
@@ -358,6 +372,33 @@ function linkPackage(
   }
   makeSymbolicLink(src, dest)
   return src
+}
+
+function linkBin(
+  binDir: string,
+  packageDir: string,
+  name: string,
+  bin: PackageBin,
+) {
+  if (!bin) return
+  if (typeof bin === 'string') {
+    linkBinFile(binDir, packageDir, name, bin)
+    return
+  }
+  for (let name in bin) {
+    let filename = bin[name]
+    linkBinFile(binDir, packageDir, name, filename)
+  }
+}
+function linkBinFile(
+  binDir: string,
+  packageDir: string,
+  name: string,
+  filename: string,
+) {
+  let src = join(packageDir, filename)
+  let dest = join(binDir, name)
+  makeSymbolicLink(src, dest)
 }
 
 function npmInstall(cwd: string, dependencies: Dependencies) {

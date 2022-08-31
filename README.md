@@ -25,7 +25,7 @@ However, this package setup symbolic link (softlink) of each package's directory
   - [x] read package list from package.json
   - [x] add new packages to package.json
   - [ ] support local packages with `link:` and `file:` prefix
-  - [ ] support node_modules/.bin cli (use `pnpm rebuild` for now)
+  - [x] support "bin" in packages.json (setup symbolic link in node_modules/.bin)
   - [x] recursively install in every package / project
 - [x] remove packages
   - [x] remove extra packages not specified in package.json
