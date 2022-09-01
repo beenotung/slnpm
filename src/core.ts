@@ -275,6 +275,8 @@ function installPackages(context: Context, packageDir: string) {
     }
     return bin
   }
+  // nodeModulesDir -> name -> depPackageDir
+  let depPackageDirs = new Map<string, Map<string, string>>()
   function linkDep(nodeModulesDir: string, name: string, versionRange: string) {
     let versions = Array.from(getVersions(storePackageVersions, name))
     let exactVersion = findLatestMatch(versionRange, versions)
@@ -286,6 +288,7 @@ function installPackages(context: Context, packageDir: string) {
       name,
       exactVersion,
     )
+    getMap2(depPackageDirs, nodeModulesDir).set(name, depPackageDir)
     let bin = linkDeps(depPackageDir)
     if (bin) {
       if (!hasBinDir) {
@@ -312,6 +315,26 @@ function installPackages(context: Context, packageDir: string) {
       linkDep(nodeModulesDir, name, version)
     }
   }
+
+  function linkPeerDeps(nodeModulesDir: string) {
+    let parentDeps = getMap2(depPackageDirs, nodeModulesDir)
+    parentDeps.forEach((depPackageDir, name) => {
+      let {
+        json: { peerDependencies },
+      } = getPackageJson(depPackageDir)
+      if (!peerDependencies) return
+      console.debug('linkPeerDep loop:', {
+        name,
+        depPackageDir,
+        peerDependencies,
+        parentDeps,
+      })
+      // TODO link peerDeps from parentDep's exact version to self node_modules
+      let nodeModulesDir = join(depPackageDir, 'node_modules')
+      linkPeerDeps(nodeModulesDir)
+    })
+  }
+  linkPeerDeps(nodeModulesDir)
 }
 
 function getVersions(map: Map<string, Set<string>>, name: string) {
@@ -321,6 +344,15 @@ function getVersions(map: Map<string, Set<string>>, name: string) {
     map.set(name, set)
   }
   return set
+}
+
+function getMap2(map: Map<string, Map<string, string>>, key: string) {
+  let map2 = map.get(key)
+  if (!map2) {
+    map2 = new Map()
+    map.set(key, map2)
+  }
+  return map2
 }
 
 type PackageJSON = {
