@@ -316,21 +316,29 @@ function installPackages(context: Context, packageDir: string) {
     }
   }
 
+  let linkedPeerDeps = new Set<string>()
   function linkPeerDeps(nodeModulesDir: string) {
+    let realNodeModulesDir = realpathSync(nodeModulesDir)
+    if (linkedPeerDeps.has(realNodeModulesDir)) return
+    linkedPeerDeps.add(realNodeModulesDir)
     let parentDeps = getMap2(depPackageDirs, nodeModulesDir)
     parentDeps.forEach((depPackageDir, name) => {
       let {
         json: { peerDependencies },
       } = getPackageJson(depPackageDir)
-      if (!peerDependencies) return
-      console.debug('linkPeerDep loop:', {
-        name,
-        depPackageDir,
-        peerDependencies,
-        parentDeps,
-      })
-      // TODO link peerDeps from parentDep's exact version to self node_modules
-      let nodeModulesDir = join(depPackageDir, 'node_modules')
+      if (peerDependencies) {
+        let nodeModulesDir = join(depPackageDir, 'node_modules')
+        for (let name in peerDependencies) {
+          let peerDepDir = parentDeps.get(name)
+          if (!peerDepDir) continue
+          let depDir = join(nodeModulesDir, name)
+          if (name.includes('/')) {
+            let parentDir = dirname(depDir)
+            mkdirSync(parentDir, { recursive: true })
+          }
+          makeSymbolicLink(peerDepDir, depDir)
+        }
+      }
       linkPeerDeps(nodeModulesDir)
     })
   }

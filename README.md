@@ -23,6 +23,9 @@ However, this package setup symbolic link (softlink) of each package's directory
 
 - [x] install packages
   - [x] read package list from package.json
+    - [x] support dependencies
+    - [x] support devDependencies
+    - [x] support peerDependencies
   - [x] add new packages to package.json
   - [ ] support local packages with `link:` and `file:` prefix
   - [x] support "bin" in packages.json (setup symbolic link in node_modules/.bin)
