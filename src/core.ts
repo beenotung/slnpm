@@ -251,8 +251,6 @@ function installPackages(context: Context, packageDir: string) {
   if (options.verbose && usedPackageVersions.size > 0) {
     console.log('linking packages:', usedPackageVersions)
   }
-  let hasBinDir = false
-  let binDir = join(nodeModulesDir, '.bin')
   let linkedDeps = new Set<string>()
   function linkDeps(packageDir: string) {
     // detect cyclic dependencies
@@ -290,13 +288,9 @@ function installPackages(context: Context, packageDir: string) {
     )
     getMap2(depPackageDirs, nodeModulesDir).set(name, depPackageDir)
     let bin = linkDeps(depPackageDir)
-    if (bin) {
-      if (!hasBinDir) {
-        mkdirSync(binDir, { recursive: true })
-        hasBinDir = true
-      }
-      linkBin(binDir, depPackageDir, name, bin)
-    }
+    if (!bin) return
+    let binDir = join(nodeModulesDir, '.bin')
+    linkBin(binDir, depPackageDir, name, bin)
   }
 
   for (let name in newInstallDeps) {
@@ -431,7 +425,7 @@ function linkBin(
   name: string,
   bin: PackageBin,
 ) {
-  if (!bin) return
+  mkdirSync(binDir, { recursive: true })
   if (typeof bin === 'string') {
     linkBinFile(binDir, packageDir, name, bin)
     return
