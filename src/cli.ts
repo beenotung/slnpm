@@ -59,6 +59,10 @@ for (let i = 2; i < process.argv.length; i++) {
     case '-q':
       verbose = false
       break
+    case '-P':
+    case '--save-prod':
+      installTarget = 'deps'
+      break
     case '-D':
     case '--save-dev':
       installTarget = 'devDeps'
