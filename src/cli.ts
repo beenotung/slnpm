@@ -95,10 +95,10 @@ for (let i = 2; i < process.argv.length; i++) {
         case 'install':
           switch (installTarget) {
             case 'deps':
-              installDeps.push(arg)
+              addDep(arg, installDeps)
               break
             case 'devDeps':
-              installDevDeps.push(arg)
+              addDep(arg, installDevDeps)
               break
             default:
               console.error('Error: unknown install target:', mode)
@@ -107,6 +107,30 @@ for (let i = 2; i < process.argv.length; i++) {
       }
     }
   }
+}
+
+function addDep(arg: string, target: string[]) {
+  if (arg.includes(':dts')) {
+    let dep = arg.replace(':dts', '')
+    target.push(dep)
+    installDevDeps.push(toTypesDep(dep))
+    return
+  }
+  if (arg.includes(':ts')) {
+    let dep = arg.replace(':ts', '')
+    target.push(dep)
+    target.push(toTypesDep(dep))
+    return
+  }
+  target.push(arg)
+}
+
+function toTypesDep(dep: string) {
+  if (dep[0] === '@') {
+    // deepcode ignore GlobalReplacementRegex: we only need to replace once
+    return '@types/' + dep.slice(1).replace('/', '__')
+  }
+  return '@types/' + dep
 }
 
 // fallback handle for tailing -D flag
@@ -132,9 +156,10 @@ This mode installs existing dependencies (and devDependencies) specified in the 
 
 Usage: ${name} [options]
 
-Example: ${name}
-Example: ${name} --verbose
-Example: ${name} --store-dir /data/.slnpm-store --prod
+Examples:
+  ${name}
+  ${name} --verbose
+  ${name} --store-dir /data/.slnpm-store --prod
 
 Available options:
 
@@ -177,14 +202,25 @@ Usage: ${name} install [options] [...packages]
 
 Alias for install: add, i, a
 
-Example: ${name} install tar
-Example: ${name} i node-fetch@2 -D @types/node-fetch@2
-Example: ${name} i -D typescript @types/node ts-node
+@types Shortcut:
+  package:ts or package:dts will install @types/package as well
+
+Examples:
+  ${name} install tar
+  ${name} i -D typescript @types/node ts-node
+  ${name} i node-fetch@2 -D @types/node-fetch@2
+  ${name} i express:dts         # (equivalent to: ${name} i express -D @types/express)
+  ${name} i better-sqlite3:ts   # (equivalent to: ${name} i better-sqlite3 @types/better-sqlite3)
 
 Available options:
 
+  --save-prod | -P
+    install the following packages as dependencies
+    (default true)
+
   --save-dev | -D
-    install the packages as devDependencies
+    install the following packages as devDependencies
+    (default false)
 
 
 ## Uninstall Mode
@@ -195,8 +231,9 @@ Usage: ${name} uninstall [...packages]
 
 Alias for uninstall: remove, u, r
 
-Example: ${name} uninstall tar
-Example: ${name} u ts-node node-fetch @types/node-fetch
+Examples:
+  ${name} uninstall tar
+  ${name} u ts-node node-fetch @types/node-fetch
 
 `.trim(),
   )
