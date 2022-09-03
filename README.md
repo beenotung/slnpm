@@ -1,6 +1,6 @@
 # slnpm
 
-A simple and fast package installer using symbolic link.
+A simple and fast node.js package manager using symbolic link.
 
 [![npm Package Version](https://img.shields.io/npm/v/slnpm)](https://www.npmjs.com/package/slnpm)
 
