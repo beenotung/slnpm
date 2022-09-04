@@ -355,9 +355,7 @@ function installPackages(context: Context, packageDir: string) {
     linkedPeerDeps.add(realNodeModulesDir)
     let parentDeps = getMap2(depPackageDirs, nodeModulesDir)
     parentDeps.forEach((depPackageDir, name) => {
-      let {
-        json: { peerDependencies },
-      } = getPackageJson(depPackageDir)
+      let { peerDependencies } = getPackageJson(depPackageDir).json
       if (peerDependencies) {
         let nodeModulesDir = join(depPackageDir, 'node_modules')
         for (let name in peerDependencies) {
