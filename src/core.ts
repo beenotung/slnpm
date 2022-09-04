@@ -9,9 +9,17 @@ import {
   rmSync,
   realpathSync,
   statSync,
+  accessSync,
+  closeSync,
+  openSync,
+  readSync,
+  writeSync,
+  chmodSync,
 } from 'fs'
+import fs from 'fs'
 import { dirname, join, resolve } from 'path'
 import semver from 'semver'
+import { EOL } from 'os'
 
 type Options = {
   storeDir: string
@@ -443,7 +451,42 @@ function linkBinFile(
 ) {
   let src = join(packageDir, filename)
   let dest = join(binDir, name)
+  setBinPermission(src)
   makeSymbolicLink(src, dest)
+}
+
+let setBinPermissionCache = new Set<string>()
+let binPrefix = Buffer.from('#!/usr/bin/env node' + EOL)
+let binPrefixCode = binPrefix[0]
+let binBuffer = Buffer.alloc(1)
+let binFlag = fs.constants.X_OK
+function setBinPermission(file: string) {
+  if (setBinPermissionCache.has(file)) return
+  setBinPermissionCache.add(file)
+  try {
+    accessSync(file, binFlag)
+    return
+  } catch (error) {
+    /* read first byte */
+    binBuffer[0] = 0
+    let fd = openSync(file, 'r')
+    readSync(fd, binBuffer)
+    closeSync(fd)
+
+    /* insert executable line if not already present */
+    if (binBuffer[0] !== binPrefixCode) {
+      let content = readFileSync(file)
+      let tmpFile = file + '.tmp'
+      fd = openSync(tmpFile, 'w+')
+      writeSync(fd, binPrefix)
+      writeSync(fd, content)
+      closeSync(fd)
+      mv(tmpFile, file)
+    }
+
+    /* set executable permission */
+    chmodSync(file, 0o755)
+  }
 }
 
 function npmInstall(cwd: string, dependencies: Dependencies) {
