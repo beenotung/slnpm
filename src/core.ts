@@ -115,7 +115,7 @@ function installPackages(context: Context, packageDir: string) {
       newInstallDeps[name] = version
     }
     installDeps: for (let dep of installDeps) {
-      if (dep.startsWith('link:')) {
+      if (isLinkDep(dep)) {
         let name: string | null = null
         name = linkDepPackage(linkedDepPacakgeDirs, nodeModulesDir, name, dep)
         getVersions(usedPackageVersions, name).add(dep)
@@ -193,7 +193,7 @@ function installPackages(context: Context, packageDir: string) {
   }
 
   function addPackageDep(name: string, versionRange: string) {
-    if (versionRange.startsWith('link:')) {
+    if (isLinkDep(versionRange)) {
       linkDepPackage(linkedDepPacakgeDirs, nodeModulesDir, name, versionRange)
       getVersions(usedPackageVersions, name).add(versionRange)
       return
@@ -306,8 +306,8 @@ function installPackages(context: Context, packageDir: string) {
   // nodeModulesDir -> name -> depPackageDir
   let depPackageDirs = new Map<string, Map<string, string>>()
   function linkDep(nodeModulesDir: string, name: string, versionRange: string) {
-    if (versionRange.startsWith('link:')) {
-      let depPackageDir = versionRange.slice('link:'.length)
+    if (isLinkDep(versionRange)) {
+      let depPackageDir = parseLinkDepPackageDir(versionRange)
       getMap2(depPackageDirs, nodeModulesDir).set(name, depPackageDir)
       let bin = getPackageJson(depPackageDir).json.bin
       linkBin(nodeModulesDir, depPackageDir, name, bin)
@@ -457,7 +457,7 @@ function linkDepPackage(
   packageName: string | null,
   dep: string,
 ): string {
-  let src = dep.substring('link:'.length)
+  let src = parseLinkDepPackageDir(dep)
   if (!packageName) {
     let { json, file } = getPackageJson(src)
     if (!json.name) throw new Error(`missing package name in ${file}`)
@@ -644,4 +644,12 @@ function scanPackageRecursively(
       continue
     }
   }
+}
+
+function isLinkDep(dep: string): boolean {
+  return dep.startsWith('link:') || dep.startsWith('file:')
+}
+
+function parseLinkDepPackageDir(dep: string): string {
+  return dep.slice('link:'.length)
 }

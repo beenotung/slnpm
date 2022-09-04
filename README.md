@@ -32,13 +32,19 @@ However, this package setup symbolic link (softlink) of each package's directory
     - [x] support @types shortcuts with `<package>:ts` and `<package>:dts` format to auto install `@types/<package>` to dependencies and devDependencies correspondingly
   - [x] support multiple source type
     - [x] npm package
-    - [x] `link:` package
-    - [ ] `file:` package
+    - [x] `link:` package*
+    - [x] `file:` package**
   - [x] support "bin" in packages.json (setup symbolic link in node_modules/.bin)
   - [x] recursively install in every package / project
 - [x] remove packages
   - [x] remove extra packages not specified in package.json
   - [x] remove specified packages from package.json
+
+Remarks:
+
+`link:` package*: the dependencies are not further installed, slnpm assumes the linked package has already been built and installed it's own dependencies
+
+`file:` package**: treated same as `link:` package in current version
 
 ## Benchmark
 
