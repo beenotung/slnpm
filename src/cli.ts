@@ -203,7 +203,7 @@ Usage: ${name} install [options] [...packages]
 Alias for install: add, i, a
 
 @types Shortcut:
-  package:ts or package:dts will install @types/package as well
+  <package>:ts or <package>:dts will install @types/<package> as well
 
 Examples:
   ${name} install tar
