@@ -15,6 +15,7 @@ import {
   readSync,
   writeSync,
   chmodSync,
+  lstatSync,
 } from 'fs'
 import fs from 'fs'
 import { dirname, join, resolve } from 'path'
@@ -38,11 +39,13 @@ export function main(options: Options) {
 
   let storePackageVersions = scanStorePackages(storeDir)
   let collectedNodeModules = new Set<string>()
+  let linkedDepPacakgeDirs = new Set<string>()
   let context: Context = {
     options,
     storeDir,
     storePackageVersions,
     collectedNodeModules,
+    linkedDepPacakgeDirs,
   }
 
   if (options.recursive) {
@@ -80,11 +83,17 @@ type Context = {
   storeDir: string
   storePackageVersions: Map<string, Set<string>>
   collectedNodeModules: Set<string>
+  linkedDepPacakgeDirs: Set<string>
 }
 
 function installPackages(context: Context, packageDir: string) {
-  let { storeDir, storePackageVersions, options, collectedNodeModules } =
-    context
+  let {
+    storeDir,
+    storePackageVersions,
+    options,
+    collectedNodeModules,
+    linkedDepPacakgeDirs,
+  } = context
 
   let packageFile = join(packageDir, 'package.json')
   let packageJson = JSON.parse(
@@ -95,54 +104,64 @@ function installPackages(context: Context, packageDir: string) {
   let nodeModulesDir = join(packageDir, 'node_modules')
   mkdirSync(nodeModulesDir, { recursive: true })
 
+  let usedPackageVersions = new Map<string, Set<string>>()
+
   let newDeps: Dependencies = {}
   let hasNewDeps = false
   let newInstallDeps: Dependencies = {}
-  function addInstallDep(dep: string): { name: string; version: string } {
-    let { name, version } = parseDep(dep)
-    let storeVersions = getVersions(storePackageVersions, name)
-    let exactVersion = semver.maxSatisfying(
-      Array.from(storeVersions),
-      version || '*',
-    )
-    if (exactVersion) {
-      linkPackage(storeDir, nodeModulesDir, name, exactVersion)
-      return { name, version: version || `^${exactVersion}` }
+  function installDeps(deps: Dependencies, installDeps: string[]) {
+    function registerVersion(name: string, version: string) {
+      deps[name] = version
+      newInstallDeps[name] = version
     }
-
-    let npmVersions = npmViewVersions(dep)
-    if (npmVersions.length === 0) throw new Error('No versions found: ' + dep)
-    npmVersions.reverse()
-    for (let exactVersion of npmVersions) {
-      if (storeVersions.has(exactVersion)) {
-        linkPackage(storeDir, nodeModulesDir, name, exactVersion)
-        return { name, version: version || `^${exactVersion}` }
+    installDeps: for (let dep of installDeps) {
+      if (dep.startsWith('link:')) {
+        let name: string | null = null
+        name = linkDepPackage(linkedDepPacakgeDirs, nodeModulesDir, name, dep)
+        getVersions(usedPackageVersions, name).add(dep)
+        deps[name] = dep
+        continue
       }
+      let { name, version } = parseDep(dep)
+
+      let storeVersions = getVersions(storePackageVersions, name)
+      let exactVersion = semver.maxSatisfying(
+        Array.from(storeVersions),
+        version || '*',
+      )
+      if (exactVersion) {
+        linkStorePackage(storeDir, nodeModulesDir, name, exactVersion)
+        registerVersion(name, `${exactVersion}`)
+        continue
+      }
+
+      let npmVersions = npmViewVersions(dep)
+      if (npmVersions.length === 0) throw new Error('No versions found: ' + dep)
+      npmVersions.reverse()
+      for (let exactVersion of npmVersions) {
+        if (storeVersions.has(exactVersion)) {
+          linkStorePackage(storeDir, nodeModulesDir, name, exactVersion)
+          registerVersion(name, version || `^${exactVersion}`)
+          continue installDeps
+        }
+      }
+      exactVersion = npmVersions[0]
+      version = version || `^${exactVersion}`
+      newDeps[name] = version
+      hasNewDeps = true
+      registerVersion(name, version)
     }
-    exactVersion = npmVersions[0]
-    version = version || `^${exactVersion}`
-    newDeps[name] = version
-    hasNewDeps = true
-    return { name, version: version }
   }
   let hasUpdatedPackageJson = false
   if (options.installDeps.length > 0) {
     let deps = dependencies ? { ...dependencies } : {}
-    for (let dep of options.installDeps) {
-      let { name, version } = addInstallDep(dep)
-      deps[name] = version
-      newInstallDeps[name] = version
-    }
+    installDeps(deps, options.installDeps)
     packageJson.dependencies = sortDeps(deps)
     hasUpdatedPackageJson = true
   }
   if (options.installDevDeps.length > 0) {
     let deps = devDependencies ? { ...devDependencies } : {}
-    for (let dep of options.installDevDeps) {
-      let { name, version } = addInstallDep(dep)
-      deps[name] = version
-      newInstallDeps[name] = version
-    }
+    installDeps(deps, options.installDevDeps)
     packageJson.devDependencies = sortDeps(deps)
     hasUpdatedPackageJson = true
   }
@@ -174,10 +193,15 @@ function installPackages(context: Context, packageDir: string) {
   }
 
   function addPackageDep(name: string, versionRange: string) {
+    if (versionRange.startsWith('link:')) {
+      linkDepPackage(linkedDepPacakgeDirs, nodeModulesDir, name, versionRange)
+      getVersions(usedPackageVersions, name).add(versionRange)
+      return
+    }
     let versions = Array.from(getVersions(storePackageVersions, name))
     let exactVersion = findLatestMatch(versionRange, versions)
     if (exactVersion) {
-      linkPackage(storeDir, nodeModulesDir, name, exactVersion)
+      linkStorePackage(storeDir, nodeModulesDir, name, exactVersion)
       return
     }
     newDeps[name] = versionRange
@@ -196,7 +220,6 @@ function installPackages(context: Context, packageDir: string) {
     }
   }
 
-  let usedPackageVersions = new Map<string, Set<string>>()
   function collectNodeModules(nodeModulesDir: string) {
     // detect cyclic dependencies
     let realNodeModulesDir = realpathSync(nodeModulesDir)
@@ -218,14 +241,18 @@ function installPackages(context: Context, packageDir: string) {
     }
   }
   function collectPackage(packageDir: string) {
+    let stats = lstatSync(packageDir)
+    if (stats.isSymbolicLink()) return
     let {
       json: { name, version },
       file,
     } = getPackageJson(packageDir)
     if (!name) throw new Error(`missing package name in ${file}`)
     if (!version) throw new Error(`missing package version in ${file}`)
-    getVersions(storePackageVersions, name).add(version)
     getVersions(usedPackageVersions, name).add(version)
+    let realPackageDir = realpathSync(packageDir)
+    if (linkedDepPacakgeDirs.has(realPackageDir)) return
+    getVersions(storePackageVersions, name).add(version)
     let nodeModulesDir = join(packageDir, 'node_modules')
     if (existsSync(nodeModulesDir)) {
       collectNodeModules(nodeModulesDir)
@@ -284,11 +311,12 @@ function installPackages(context: Context, packageDir: string) {
   // nodeModulesDir -> name -> depPackageDir
   let depPackageDirs = new Map<string, Map<string, string>>()
   function linkDep(nodeModulesDir: string, name: string, versionRange: string) {
+    if (versionRange.startsWith('link:')) return
     let versions = Array.from(getVersions(storePackageVersions, name))
     let exactVersion = findLatestMatch(versionRange, versions)
     if (!exactVersion)
       throw new Error(`missing package ${name} ${versionRange}`)
-    let depPackageDir = linkPackage(
+    let depPackageDir = linkStorePackage(
       storeDir,
       nodeModulesDir,
       name,
@@ -411,7 +439,7 @@ function makeSymbolicLink(src: string, dest: string) {
   }
 }
 
-function linkPackage(
+function linkStorePackage(
   storeDir: string,
   nodeModulesDir: string,
   packageName: string,
@@ -419,12 +447,35 @@ function linkPackage(
 ) {
   let src = join(storeDir, `${packageName}@${exactVersion}`)
   let dest = join(nodeModulesDir, packageName)
+  linkPackage(packageName, src, dest)
+  return src
+}
+
+function linkDepPackage(
+  linkedDepPacakgeDirs: Set<string>,
+  nodeModulesDir: string,
+  packageName: string | null,
+  dep: string,
+): string {
+  let src = dep.substring('link:'.length)
+  if (!packageName) {
+    let { json, file } = getPackageJson(src)
+    if (!json.name) throw new Error(`missing package name in ${file}`)
+    packageName = json.name
+  }
+  let dest = join(nodeModulesDir, packageName)
+  linkPackage(packageName, src, dest)
+  let packageDir = realpathSync(dest)
+  linkedDepPacakgeDirs.add(packageDir)
+  return packageName
+}
+
+function linkPackage(packageName: string, src: string, dest: string) {
   if (packageName.includes('/')) {
     let parentDir = dirname(dest)
     mkdirSync(parentDir, { recursive: true })
   }
   makeSymbolicLink(src, dest)
-  return src
 }
 
 function linkBin(
@@ -553,7 +604,6 @@ function npmViewVersions(dep: string): string[] {
 
 function uninstallDep(nodeModulesDir: string, name: string) {
   let dir = join(nodeModulesDir, name)
-  console.debug('uninstall', { name, dir })
   rmSync(dir, { recursive: true, force: true })
 }
 

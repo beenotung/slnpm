@@ -27,8 +27,13 @@ However, this package setup symbolic link (softlink) of each package's directory
     - [x] support devDependencies
     - [x] support peerDependencies
   - [x] add new packages to package.json
+    - [x] save to dependencies
+    - [x] save to devDependencies
     - [x] support @types shortcuts with `<package>:ts` and `<package>:dts` format to auto install `@types/<package>` to dependencies and devDependencies correspondingly
-  - [ ] support local packages with `link:` and `file:` prefix
+  - [x] support multiple source type
+    - [x] npm package
+    - [x] `link:` package
+    - [ ] `file:` package
   - [x] support "bin" in packages.json (setup symbolic link in node_modules/.bin)
   - [x] recursively install in every package / project
 - [x] remove packages

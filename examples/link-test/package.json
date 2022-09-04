@@ -1,0 +1,14 @@
+{
+  "name": "link-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sql-lang": "link:/home/beenotung/workspace/github.com/beenotung/better-sql",
+    "quick-erd": "link:/home/beenotung/workspace/github.com/beenotung/quick-erd"
+  }
+}
