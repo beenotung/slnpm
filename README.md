@@ -50,7 +50,7 @@ Remarks:
 
 The benchmark is done using this package's dependencies as example.
 
-node_modules and lock files are deleted before the test, and all packages were already cached by the installers.
+node_modules and lock files are deleted before each run, and all packages were already cached by the installers.
 
 The test was conducted on laptop with zst-compressed zfs and desktop with zst-compressed btrfs. The result is almost identical.
 
@@ -63,7 +63,9 @@ The test was conducted on laptop with zst-compressed zfs and desktop with zst-co
 Remark:
 
 - `--prefer-offline` flag is used in pnpm's test
+- The time used is measured by the linux command `time`
 - The time used is average of 5 runs
+- slnpm actually only takes 39ms for the actual installation process but I cannot separate the time used to load dependencies from other installers so this matrix is not compared
 
 ## License
 
