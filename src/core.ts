@@ -287,15 +287,11 @@ function installPackages(context: Context, packageDir: string) {
     console.log('linking packages:', usedPackageVersions)
   }
   let linkedDeps = new Set<string>()
-  function linkDeps(packageDir: string) {
+  function linkDeps(packageDir: string, dependencies: Dependencies) {
     // detect cyclic dependencies
     let realPackageDir = realpathSync(packageDir)
     if (linkedDeps.has(realPackageDir)) return
     linkedDeps.add(realPackageDir)
-    let {
-      json: { dependencies, bin },
-    } = getPackageJson(packageDir)
-    if (!dependencies) return
     let nodeModulesDir = join(packageDir, 'node_modules')
     let hasNodeModulesDir = false
     for (let name in dependencies) {
@@ -306,12 +302,17 @@ function installPackages(context: Context, packageDir: string) {
       let versionRange = dependencies[name]
       linkDep(nodeModulesDir, name, versionRange)
     }
-    return bin
   }
   // nodeModulesDir -> name -> depPackageDir
   let depPackageDirs = new Map<string, Map<string, string>>()
   function linkDep(nodeModulesDir: string, name: string, versionRange: string) {
-    if (versionRange.startsWith('link:')) return
+    if (versionRange.startsWith('link:')) {
+      let depPackageDir = versionRange.slice('link:'.length)
+      getMap2(depPackageDirs, nodeModulesDir).set(name, depPackageDir)
+      let bin = getPackageJson(depPackageDir).json.bin
+      linkBin(nodeModulesDir, depPackageDir, name, bin)
+      return
+    }
     let versions = Array.from(getVersions(storePackageVersions, name))
     let exactVersion = findLatestMatch(versionRange, versions)
     if (!exactVersion)
@@ -323,10 +324,11 @@ function installPackages(context: Context, packageDir: string) {
       exactVersion,
     )
     getMap2(depPackageDirs, nodeModulesDir).set(name, depPackageDir)
-    let bin = linkDeps(depPackageDir)
-    if (!bin) return
-    let binDir = join(nodeModulesDir, '.bin')
-    linkBin(binDir, depPackageDir, name, bin)
+    let { dependencies, bin } = getPackageJson(depPackageDir).json
+    if (dependencies) {
+      linkDeps(depPackageDir, dependencies)
+    }
+    linkBin(nodeModulesDir, depPackageDir, name, bin)
   }
 
   for (let name in newInstallDeps) {
@@ -479,11 +481,13 @@ function linkPackage(packageName: string, src: string, dest: string) {
 }
 
 function linkBin(
-  binDir: string,
+  nodeModulesDir: string,
   packageDir: string,
   name: string,
-  bin: PackageBin,
+  bin: PackageBin | undefined,
 ) {
+  if (!bin) return
+  let binDir = join(nodeModulesDir, '.bin')
   mkdirSync(binDir, { recursive: true })
   if (typeof bin === 'string') {
     linkBinFile(binDir, packageDir, name, bin)
