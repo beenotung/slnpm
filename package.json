@@ -1,6 +1,6 @@
 {
   "name": "slnpm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An alternative package installer using symbolic link.",
   "keywords": [
     "dependency manager",
