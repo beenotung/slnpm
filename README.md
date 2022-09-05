@@ -7,6 +7,12 @@ A simple and fast node.js package manager using symbolic link.
 The design is heavily inspired by pnpm, which downloads and caches each npm package, then setup hardlink of each file to the project's node_modules.
 However, this package setup symbolic link (softlink) of each package's directory.
 
+## Installation
+
+```bash
+npm i -g slnpm
+```
+
 ## Feature
 
 - save network - only need to download each package once
