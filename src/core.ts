@@ -488,6 +488,9 @@ function linkBin(
   let binDir = join(nodeModulesDir, '.bin')
   mkdirSync(binDir, { recursive: true })
   if (typeof bin === 'string') {
+    if (name[0] === '@') {
+      name = name.split('/')[1]
+    }
     linkBinFile(binDir, packageDir, name, bin)
     return
   }
