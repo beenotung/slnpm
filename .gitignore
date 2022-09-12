@@ -1,6 +1,6 @@
 node_modules/
 pnpm-lock.yaml
 *.tgz
-.slnpm-store/
+.slnpm-store
 dist/
 *.tsbuildinfo
