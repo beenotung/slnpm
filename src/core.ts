@@ -362,6 +362,7 @@ function installPackages(context: Context, packageDir: string) {
     parentDeps.forEach(depPackageDir => {
       let { json } = getPackageJson(depPackageDir)
       let nodeModulesDir = join(depPackageDir, 'node_modules')
+      mkdirSync(nodeModulesDir, { recursive: true })
       let linkedPeerDeps = new Set<string>()
       for (let name in json.peerDependencies) {
         linkPeerDep(parentDeps, nodeModulesDir, name)
