@@ -351,9 +351,13 @@ function installPackages(context: Context, packageDir: string) {
 
   let linkedPeerDeps = new Set<string>()
   function linkPeerDeps(nodeModulesDir: string) {
-    let realNodeModulesDir = realpathSync(nodeModulesDir)
-    if (linkedPeerDeps.has(realNodeModulesDir)) return
-    linkedPeerDeps.add(realNodeModulesDir)
+    try {
+      let realNodeModulesDir = realpathSync(nodeModulesDir)
+      if (linkedPeerDeps.has(realNodeModulesDir)) return
+      linkedPeerDeps.add(realNodeModulesDir)
+    } catch (error) {
+      return
+    }
     let parentDeps = getMap2(depPackageDirs, nodeModulesDir)
     parentDeps.forEach((depPackageDir, name) => {
       let { peerDependencies } = getPackageJson(depPackageDir).json
