@@ -31,6 +31,7 @@ type Options = {
   installDevDeps: string[]
   uninstallDeps: string[]
   recursive: boolean
+  legacyPeerDeps: boolean
 }
 
 export function main(options: Options) {
@@ -276,7 +277,7 @@ function installPackages(context: Context, packageDir: string) {
     }
     let tmpDir = join(nodeModulesDir, '.tmp')
     mkdirSync(tmpDir, { recursive: true })
-    npmInstall(tmpDir, newDeps)
+    npmInstall(context, tmpDir, newDeps)
     let tmpNodeModulesDir = join(tmpDir, 'node_modules')
     collectNodeModules(tmpNodeModulesDir)
   }
@@ -545,8 +546,11 @@ function setBinPermission(file: string) {
   }
 }
 
-function npmInstall(cwd: string, dependencies: Dependencies) {
+function npmInstall(context: Context, cwd: string, dependencies: Dependencies) {
   let cmd = 'npx npm i'
+  if (context.options.legacyPeerDeps) {
+    cmd += ' --legacy-peer-deps'
+  }
   let file = join(cwd, 'package.json')
   let json: PackageJSON = { dependencies }
   let text = JSON.stringify(json)

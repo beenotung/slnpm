@@ -12,6 +12,7 @@ let installDeps: string[] = []
 let installDevDeps: string[] = []
 let uninstallDeps: string[] = []
 let recursive = false
+let legacyPeerDeps = false
 
 let mode: 'install' | 'uninstall' | 'default' | null = null
 let installTarget: 'deps' | 'devDeps' = 'deps'
@@ -71,6 +72,9 @@ for (let i = 2; i < process.argv.length; i++) {
     case '-r':
     case '--recursive':
       recursive = true
+      break
+    case '--legacy-peer-deps':
+      legacyPeerDeps = true
       break
     case '--version':
       showVersion()
@@ -179,6 +183,10 @@ Available options:
     install in all sub-directories with a package.json file (excluding node_modules)
     (default false)
 
+  --legacy-peer-deps
+    if a package cannot be installed because of overly strict peerDependencies that collide,
+    this flag provides a way to move forward resolving the situation
+
   --verbose | -v
     print installed package name and versions
     (default false)
@@ -250,6 +258,7 @@ try {
     installDevDeps,
     uninstallDeps,
     recursive,
+    legacyPeerDeps,
   })
   let end = Date.now()
   let used = end - start
