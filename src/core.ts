@@ -453,7 +453,7 @@ function linkStorePackage(
 }
 
 function linkDepPackage(
-  linkedDepPacakgeDirs: Set<string>,
+  linkedDepPackageDirs: Set<string>,
   nodeModulesDir: string,
   packageName: string | null,
   dep: string,
@@ -467,7 +467,7 @@ function linkDepPackage(
   let dest = join(nodeModulesDir, packageName)
   linkPackage(packageName, src, dest)
   let packageDir = realpathSync(dest)
-  linkedDepPacakgeDirs.add(packageDir)
+  linkedDepPackageDirs.add(packageDir)
   return packageName
 }
 
