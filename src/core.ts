@@ -39,13 +39,13 @@ export function main(options: Options) {
 
   let storePackageVersions = scanStorePackages(storeDir)
   let collectedNodeModules = new Set<string>()
-  let linkedDepPacakgeDirs = new Set<string>()
+  let linkedDepPackageDirs = new Set<string>()
   let context: Context = {
     options,
     storeDir,
     storePackageVersions,
     collectedNodeModules,
-    linkedDepPacakgeDirs,
+    linkedDepPackageDirs,
   }
 
   if (options.recursive) {
@@ -83,7 +83,7 @@ type Context = {
   storeDir: string
   storePackageVersions: Map<string, Set<string>>
   collectedNodeModules: Set<string>
-  linkedDepPacakgeDirs: Set<string>
+  linkedDepPackageDirs: Set<string>
 }
 
 function installPackages(context: Context, packageDir: string) {
@@ -92,7 +92,7 @@ function installPackages(context: Context, packageDir: string) {
     storePackageVersions,
     options,
     collectedNodeModules,
-    linkedDepPacakgeDirs,
+    linkedDepPackageDirs,
   } = context
 
   let packageFile = join(packageDir, 'package.json')
@@ -117,7 +117,7 @@ function installPackages(context: Context, packageDir: string) {
     installDeps: for (let dep of installDeps) {
       if (isLinkDep(dep)) {
         let name: string | null = null
-        name = linkDepPackage(linkedDepPacakgeDirs, nodeModulesDir, name, dep)
+        name = linkDepPackage(linkedDepPackageDirs, nodeModulesDir, name, dep)
         getVersions(usedPackageVersions, name).add(dep)
         deps[name] = dep
         continue
@@ -194,7 +194,7 @@ function installPackages(context: Context, packageDir: string) {
 
   function addPackageDep(name: string, versionRange: string) {
     if (isLinkDep(versionRange)) {
-      linkDepPackage(linkedDepPacakgeDirs, nodeModulesDir, name, versionRange)
+      linkDepPackage(linkedDepPackageDirs, nodeModulesDir, name, versionRange)
       getVersions(usedPackageVersions, name).add(versionRange)
       return
     }
@@ -251,7 +251,7 @@ function installPackages(context: Context, packageDir: string) {
     if (!version) throw new Error(`missing package version in ${file}`)
     getVersions(usedPackageVersions, name).add(version)
     let realPackageDir = realpathSync(packageDir)
-    if (linkedDepPacakgeDirs.has(realPackageDir)) return
+    if (linkedDepPackageDirs.has(realPackageDir)) return
     getVersions(storePackageVersions, name).add(version)
     let nodeModulesDir = join(packageDir, 'node_modules')
     if (existsSync(nodeModulesDir)) {
