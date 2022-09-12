@@ -359,25 +359,37 @@ function installPackages(context: Context, packageDir: string) {
       return
     }
     let parentDeps = getMap2(depPackageDirs, nodeModulesDir)
-    parentDeps.forEach((depPackageDir, name) => {
-      let { peerDependencies } = getPackageJson(depPackageDir).json
-      if (peerDependencies) {
-        let nodeModulesDir = join(depPackageDir, 'node_modules')
-        for (let name in peerDependencies) {
-          let peerDepDir = parentDeps.get(name)
-          if (!peerDepDir) continue
-          let depDir = join(nodeModulesDir, name)
-          if (name.includes('/')) {
-            let parentDir = dirname(depDir)
-            mkdirSync(parentDir, { recursive: true })
-          }
-          makeSymbolicLink(peerDepDir, depDir)
-        }
+    parentDeps.forEach(depPackageDir => {
+      let { json } = getPackageJson(depPackageDir)
+      let nodeModulesDir = join(depPackageDir, 'node_modules')
+      let linkedPeerDeps = new Set<string>()
+      for (let name in json.peerDependencies) {
+        linkPeerDep(parentDeps, nodeModulesDir, name)
+        linkedPeerDeps.add(name)
+      }
+      for (let name in json.peerDependenciesMeta) {
+        if (linkedPeerDeps.has(name)) return
+        linkPeerDep(parentDeps, nodeModulesDir, name)
       }
       linkPeerDeps(nodeModulesDir)
     })
   }
   linkPeerDeps(nodeModulesDir)
+}
+
+function linkPeerDep(
+  parentDeps: Map<string, string>,
+  nodeModulesDir: string,
+  name: string,
+) {
+  let peerDepDir = parentDeps.get(name)
+  if (!peerDepDir) return
+  let depDir = join(nodeModulesDir, name)
+  if (name.includes('/')) {
+    let parentDir = dirname(depDir)
+    mkdirSync(parentDir, { recursive: true })
+  }
+  makeSymbolicLink(peerDepDir, depDir)
 }
 
 function getVersions(map: Map<string, Set<string>>, name: string) {
@@ -405,6 +417,12 @@ type PackageJSON = {
   dependencies?: Dependencies
   devDependencies?: Dependencies
   peerDependencies?: Dependencies
+  peerDependenciesMeta?: {
+    // package name -> optional
+    [name: string]: {
+      optional: boolean
+    }
+  }
 }
 
 type PackageBin = string | Record<string, string>
