@@ -316,6 +316,21 @@ function installPackages(context: Context, packageDir: string) {
   // nodeModulesDir -> name -> depPackageDir
   let depPackageDirs = new Map<string, Map<string, string>>()
   function linkDep(nodeModulesDir: string, name: string, versionRange: string) {
+    if (versionRange.startsWith('npm:')) {
+      // e.g. package "@isaacs/cliui@8.0.2" has dependency on "string-width-cjs" with version "npm:string-width@^4.2.0"
+      let parts = versionRange.slice(4).split('@')
+      if (parts.length == 2) {
+        name = parts[0]
+        versionRange = parts[1]
+      } else if (parts.length == 3) {
+        name = parts[0] + '@' + parts[1]
+        versionRange = parts[2]
+      } else {
+        throw new Error(
+          `Invalid versionRange: ${versionRange}, name: ${name}, nodeModulesDir: ${nodeModulesDir}`,
+        )
+      }
+    }
     if (isLinkDep(versionRange)) {
       let depPackageDir = parseLinkDepPackageDir(versionRange)
       getMap2(depPackageDirs, nodeModulesDir).set(name, depPackageDir)
@@ -326,7 +341,9 @@ function installPackages(context: Context, packageDir: string) {
     let versions = Array.from(getVersions(storePackageVersions, name))
     let exactVersion = findLatestMatch(versionRange, versions)
     if (!exactVersion)
-      throw new Error(`missing package ${name} ${versionRange}`)
+      throw new Error(
+        `missing package, name: ${name}, versionRange: ${versionRange}`,
+      )
     let depPackageDir = linkStorePackage(
       storeDir,
       nodeModulesDir,
