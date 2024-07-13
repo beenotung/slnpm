@@ -49,6 +49,8 @@ export function main(options: Options) {
     linkedDepPackageDirs,
   }
 
+  initPackageFile(options.cwd)
+
   if (options.recursive) {
     scanPackageRecursively(context, options.cwd, new Set())
     return
@@ -85,6 +87,13 @@ type Context = {
   storePackageVersions: Map<string, Set<string>>
   collectedNodeModules: Set<string>
   linkedDepPackageDirs: Set<string>
+}
+
+function initPackageFile(packageDir: string) {
+  let packageFile = join(packageDir, 'package.json')
+  if (!existsSync(packageFile)) {
+    writeFileSync(packageFile, '{}')
+  }
 }
 
 function installPackages(context: Context, packageDir: string) {
